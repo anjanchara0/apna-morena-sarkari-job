@@ -31,7 +31,7 @@ L = instaloader.Instaloader(
     download_geotags=False,
     download_comments=False,
     save_metadata=False,
-    compress_history=False
+    
 )
 
 @bot.message_handler(commands=['start'])
