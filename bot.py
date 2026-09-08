@@ -72,9 +72,12 @@ def dl(m):
 
         # 2. Agar YouTube ya koi aur link hai
         else:
-            out_file = f"{target_dir}.mp4"
+           out_file = f"{target_dir}.mp4"
             opts = {
-                'format': 'best[ext=mp4]/best',
+                # 480p tak ki best quality jo 50MB se kam rahe
+                'format': (
+                    'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]'
+                ),
                 'outtmpl': out_file,
                 'quiet': True,
                 'no_warnings': True,
@@ -82,8 +85,24 @@ def dl(m):
                     'youtube': {
                         'player_client': ['android', 'ios'],
                     }
-                }
+                },
             }
+
+            if os.path.exists(out_file):
+              file_size_mb = os.path.getsize(out_file) / (1024 * 1024)
+              if file_size_mb > 49:
+                bot.edit_message_text(
+                    '❌ 480p par bhi video 50MB se badi hai, isliye Telegram'
+                    ' allow nahi karta.',
+                    m.chat.id,
+                    msg.message_id,
+                )
+              else:
+                with open(out_file, 'rb') as vf:
+                  bot.send_video(m.chat.id, vf, timeout=300)
+                bot.delete_message(m.chat.id, msg.message_id)
+              os.remove(out_file)
+                
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([url])
 
