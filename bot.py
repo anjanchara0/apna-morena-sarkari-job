@@ -1,12 +1,9 @@
 import os
-import glob
-import shutil
+import requests
 from threading import Thread
 from flask import Flask
 import telebot
 from telebot import apihelper
-import yt_dlp
-import instaloader
 
 app = Flask(__name__)
 
@@ -21,89 +18,106 @@ def run_web():
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
-BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # Apna asli token yahan dalein
+BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # Apna asli BotFather token yahan dalein
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
-
-# Instaloader setup
-L = instaloader.Instaloader(
-    download_pictures=False,
-    download_videos=True,
-    download_video_thumbnails=False,
-    download_geotags=False,
-    download_comments=False,
-    save_metadata=False
-)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-    bot.reply_to(m, "Namaste! YouTube ya Instagram ka video link bhejein.")
+    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi Video/Reel/Photo link bhejein, main download karke dunga.")
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
     url = m.text.strip()
     if not url.startswith('http'):
-        bot.reply_to(m, "Kripya sahi video link bhejein.")
+        bot.reply_to(m, "Kripya sahi link bhejein.")
         return
 
-    msg = bot.reply_to(m, "⚡ Downloading...")
-    target_dir = f"dl_{m.chat.id}_{m.message_id}"
+    msg = bot.reply_to(m, "⚡ Processing link...")
+    file_path = f"media_{m.chat.id}_{m.message_id}"
 
     try:
-        # 1. Instagram download logic
+        # 1. INSTAGRAM (Photos, Reels, Videos)
         if 'instagram.com' in url:
-            parts = [p for p in url.split('?')[0].split('/') if p]
-            shortcode = parts[-1]
+            api_url = f"https://api.siputzx.my.id/api/d/igdl?url={url}"
+            res = requests.get(api_url, timeout=25).json()
 
-            post = instaloader.Post.from_shortcode(L.context, shortcode)
-            L.download_post(post, target=target_dir)
+            if not res.get('status') or not res.get('data'):
+                raise Exception("Instagram post private hai ya link galat hai.")
 
-            video_files = glob.glob(f"{target_dir}/*.mp4")
-            if video_files:
-                file_size_mb = os.path.getsize(video_files[0]) / (1024 * 1024)
-                if file_size_mb > 49:
-                    bot.edit_message_text("❌ Video 50MB se badi hai, Telegram allow nahi karta.", m.chat.id, msg.message_id)
-                else:
-                    bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
-                    with open(video_files[0], 'rb') as vf:
-                        bot.send_video(m.chat.id, vf, timeout=300)
-                    bot.delete_message(m.chat.id, msg.message_id)
+            media_list = res['data']
+            bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
+
+            for idx, item in enumerate(media_list):
+                media_url = item.get('url')
+                if not media_url:
+                    continue
+
+                r = requests.get(media_url, stream=True, timeout=60)
+                is_video = 'video' in r.headers.get('Content-Type', '').lower() or '.mp4' in media_url
+
+                temp_file = f"{file_path}_{idx}.mp4" if is_video else f"{file_path}_{idx}.jpg"
+                with open(temp_file, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=1024*1024):
+                        f.write(chunk)
+
+                with open(temp_file, 'rb') as f:
+                    if is_video:
+                        bot.send_video(m.chat.id, f, timeout=300)
+                    else:
+                        bot.send_photo(m.chat.id, f, timeout=300)
+
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+
+            bot.delete_message(m.chat.id, msg.message_id)
+
+        # 2. YOUTUBE (Videos / Shorts)
+        elif 'youtube.com' in url or 'youtu.be' in url:
+            api_url = f"https://api.siputzx.my.id/api/d/ytmp4?url={url}"
+            res = requests.get(api_url, timeout=30).json()
+
+            if not res.get('status') or not res.get('data'):
+                raise Exception("YouTube video extract nahi ho saki.")
+
+            dl_url = res['data'].get('dl')
+            if not dl_url:
+                raise Exception("Download link generate nahi hua.")
+
+            bot.edit_message_text("🚀 Downloading & Uploading...", m.chat.id, msg.message_id)
+
+            temp_vid = f"{file_path}.mp4"
+            with requests.get(dl_url, stream=True, timeout=120) as r:
+                r.raise_for_status()
+                with open(temp_vid, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=1024*1024):
+                        f.write(chunk)
+
+            # Check 50MB limit
+            file_size_mb = os.path.getsize(temp_vid) / (1024 * 1024)
+            if file_size_mb > 49:
+                bot.edit_message_text("❌ Video 50MB se badi hai, Telegram bot 50MB se badi file support nahi karta.", m.chat.id, msg.message_id)
             else:
-                raise Exception("Instagram video nahi mili ya account private hai.")
+                with open(temp_vid, 'rb') as f:
+                    bot.send_video(m.chat.id, f, timeout=300)
+                bot.delete_message(m.chat.id, msg.message_id)
 
-        # 2. YouTube download logic (480p format)
+            if os.path.exists(temp_vid):
+                os.remove(temp_vid)
+
         else:
-            out_file = f"{target_dir}.mp4"
-            opts = {
-                'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best[height<=480]',
-                'outtmpl': out_file,
-                'quiet': True,
-                'no_warnings': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'ios'],
-                    }
-                }
-            }
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
-
-            if os.path.exists(out_file):
-                file_size_mb = os.path.getsize(out_file) / (1024 * 1024)
-                if file_size_mb > 49:
-                    bot.edit_message_text("❌ 480p par bhi video 50MB se badi hai, Telegram allow nahi karta.", m.chat.id, msg.message_id)
-                else:
-                    bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
-                    with open(out_file, 'rb') as vf:
-                        bot.send_video(m.chat.id, vf, timeout=300)
-                    bot.delete_message(m.chat.id, msg.message_id)
-                os.remove(out_file)
+            bot.edit_message_text("Sirf Instagram aur YouTube ke links supported hain.", m.chat.id, msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(f"Dikkat aayi: {str(e)[:120]}", m.chat.id, msg.message_id)
 
     finally:
-        if os.path.exists(target_dir):
-            shutil.rmtree(target_dir, ignore_errors=True)
+        # Cleanup
+        for f in os.listdir('.'):
+            if f.startswith(f"media_{m.chat.id}_{m.message_id}"):
+                try:
+                    os.remove(f)
+                except:
+                    pass
 
 web_thread = Thread(target=run_web)
 web_thread.daemon = True
