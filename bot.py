@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from threading import Thread
 from flask import Flask
@@ -23,7 +24,7 @@ bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi Video/Reel/Photo link bhejein, main download karke dunga.")
+    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi Video/Reel link bhejein.")
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
@@ -32,92 +33,86 @@ def dl(m):
         bot.reply_to(m, "Kripya sahi link bhejein.")
         return
 
-    msg = bot.reply_to(m, "⚡ Processing link...")
-    file_path = f"media_{m.chat.id}_{m.message_id}"
+    msg = bot.reply_to(m, "⚡ Processing video...")
+    file_path = f"vid_{m.chat.id}_{m.message_id}.mp4"
 
     try:
-        # 1. INSTAGRAM (Photos, Reels, Videos)
+        download_url = None
+
+        # 1. INSTAGRAM (Fast CDN Resolver)
         if 'instagram.com' in url:
-            api_url = f"https://api.siputzx.my.id/api/d/igdl?url={url}"
-            res = requests.get(api_url, timeout=25).json()
-
-            if not res.get('status') or not res.get('data'):
-                raise Exception("Instagram post private hai ya link galat hai.")
-
-            media_list = res['data']
-            bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
-
-            for idx, item in enumerate(media_list):
-                media_url = item.get('url')
-                if not media_url:
-                    continue
-
-                r = requests.get(media_url, stream=True, timeout=60)
-                is_video = 'video' in r.headers.get('Content-Type', '').lower() or '.mp4' in media_url
-
-                temp_file = f"{file_path}_{idx}.mp4" if is_video else f"{file_path}_{idx}.jpg"
-                with open(temp_file, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=1024*1024):
-                        f.write(chunk)
-
-                with open(temp_file, 'rb') as f:
-                    if is_video:
-                        bot.send_video(m.chat.id, f, timeout=300)
-                    else:
-                        bot.send_photo(m.chat.id, f, timeout=300)
-
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-
-            bot.delete_message(m.chat.id, msg.message_id)
-
-        # 2. YOUTUBE (Videos / Shorts)
-        elif 'youtube.com' in url or 'youtu.be' in url:
-            api_url = f"https://api.siputzx.my.id/api/d/ytmp4?url={url}"
-            res = requests.get(api_url, timeout=30).json()
-
-            if not res.get('status') or not res.get('data'):
-                raise Exception("YouTube video extract nahi ho saki.")
-
-            dl_url = res['data'].get('dl')
-            if not dl_url:
-                raise Exception("Download link generate nahi hua.")
-
-            bot.edit_message_text("🚀 Downloading & Uploading...", m.chat.id, msg.message_id)
-
-            temp_vid = f"{file_path}.mp4"
-            with requests.get(dl_url, stream=True, timeout=120) as r:
-                r.raise_for_status()
-                with open(temp_vid, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=1024*1024):
-                        f.write(chunk)
-
-            # Check 50MB limit
-            file_size_mb = os.path.getsize(temp_vid) / (1024 * 1024)
-            if file_size_mb > 49:
-                bot.edit_message_text("❌ Video 50MB se badi hai, Telegram bot 50MB se badi file support nahi karta.", m.chat.id, msg.message_id)
+            clean_url = url.split('?')[0].rstrip('/')
+            match = re.search(r'/(reel|p|reels)/([A-Za-z0-9_-]+)', clean_url)
+            if not match:
+                raise Exception("Galat Instagram link.")
+            
+            shortcode = match.group(2)
+            # Direct meta parser via public gateway
+            api_endpoint = f"https://api.vkrdown.com/api/get?url=https://www.instagram.com/reel/{shortcode}/"
+            res = requests.get(api_endpoint, timeout=20).json()
+            
+            if res.get('data') and res['data'].get('downloadUrl'):
+                download_url = res['data']['downloadUrl']
+            elif res.get('downloadUrl'):
+                download_url = res['downloadUrl']
             else:
-                with open(temp_vid, 'rb') as f:
-                    bot.send_video(m.chat.id, f, timeout=300)
-                bot.delete_message(m.chat.id, msg.message_id)
+                # Alternate direct endpoint
+                alt_api = f"https://instavideosave.net/api/convert?url={clean_url}"
+                r_alt = requests.get(alt_api, timeout=20).json()
+                if r_alt.get('url'):
+                    download_url = r_alt['url'][0].get('url')
 
-            if os.path.exists(temp_vid):
-                os.remove(temp_vid)
+            if not download_url:
+                raise Exception("Instagram video ka direct link nahi mila.")
+
+        # 2. YOUTUBE (Direct Media Streamer)
+        elif 'youtube.com' in url or 'youtu.be' in url:
+            api_endpoint = f"https://api.vkrdown.com/api/get?url={url}"
+            res = requests.get(api_endpoint, timeout=25).json()
+
+            if res.get('data') and res['data'].get('downloads'):
+                # Best 720p ya 480p format select karna
+                formats = res['data']['downloads']
+                for f in formats:
+                    if f.get('format_id') in ['22', '18'] or '720' in f.get('format', '') or '480' in f.get('format', ''):
+                        download_url = f.get('url')
+                        break
+                if not download_url and formats:
+                    download_url = formats[0].get('url')
+
+            if not download_url:
+                raise Exception("YouTube download link extract nahi ho saka.")
 
         else:
-            bot.edit_message_text("Sirf Instagram aur YouTube ke links supported hain.", m.chat.id, msg.message_id)
+            bot.edit_message_text("Sirf Instagram aur YouTube ke links bhej sakte hain.", m.chat.id, msg.message_id)
+            return
+
+        bot.edit_message_text("🚀 Downloading & Uploading...", m.chat.id, msg.message_id)
+
+        # Video chunk streaming
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        with requests.get(download_url, stream=True, headers=headers, timeout=120) as r:
+            r.raise_for_status()
+            with open(file_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+
+        # 50MB check
+        size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if size_mb > 49:
+            bot.edit_message_text("❌ Video 50MB se badi hai, Telegram bot 50MB limit cross nahi kar sakta.", m.chat.id, msg.message_id)
+        else:
+            with open(file_path, 'rb') as vf:
+                bot.send_video(m.chat.id, vf, timeout=300)
+            bot.delete_message(m.chat.id, msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(f"Dikkat aayi: {str(e)[:120]}", m.chat.id, msg.message_id)
 
     finally:
-        # Cleanup
-        for f in os.listdir('.'):
-            if f.startswith(f"media_{m.chat.id}_{m.message_id}"):
-                try:
-                    os.remove(f)
-                except:
-                    pass
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 web_thread = Thread(target=run_web)
 web_thread.daemon = True
