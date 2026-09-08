@@ -43,22 +43,26 @@ def dl(m):
 
   # Har user ke liye alag file name (chat_id + message_id) taaki video mix na ho
   unique_filename = f'video_{m.chat.id}_{m.message_id}.%(ext)s'
-opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+
+  opts = {
+        'format': 'best[ext=mp4]/best',
         'outtmpl': unique_filename,
         'quiet': True,
         'no_warnings': True,
-        # Browser impersonation Instagram aur YouTube dono ko bypass karta hai
-        'impersonate': 'chrome',
+        'http_headers': {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                ' (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            ),
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'ios'],
             },
-            'instagram': {
-                'include_reels': True,
-            },
         },
     }
+  
   fn = None
   try:
     with yt_dlp.YoutubeDL(opts) as ydl:
