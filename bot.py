@@ -1,22 +1,35 @@
 import os
+from threading import Thread
+from flask import Flask
 import telebot
 from telebot import apihelper
 import yt_dlp
 
+# Render ko zinda rakhne ke liye chhota web server
+app = Flask(__name__)
+
+
+@app.route('/')
+def home():
+  return 'Bot 24/7 chal raha hai!'
+
+
+def run_web():
+  port = int(os.environ.get('PORT', 8080))
+  app.run(host='0.0.0.0', port=port)
+
+
+# Telegram Bot Setup
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
-# Apna bot token quotes ke andar dalein
-BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"
-
+BOT_TOKEN = 'APNA_TOKEN_YAHAN'  # Apna asli token yahan dalein
 bot = telebot.TeleBot(BOT_TOKEN)
 
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-  bot.reply_to(
-      m, 'Namaste! Mujhe video link bhejein, main turant download karke dunga.'
-  )
+  bot.reply_to(m, 'Namaste! Mujhe video link bhejein.')
 
 
 @bot.message_handler(func=lambda m: True)
@@ -27,10 +40,10 @@ def dl(m):
     return
 
   msg = bot.reply_to(m, '⚡ Downloading...')
-
-  # Fast download aur chhota size (Mobile optimized)
   opts = {
-      'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best',
+      'format': (
+          'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best'
+      ),
       'outtmpl': 'fast_vid.%(ext)s',
       'quiet': True,
       'no_warnings': True,
@@ -53,11 +66,14 @@ def dl(m):
     bot.delete_message(m.chat.id, msg.message_id)
 
   except Exception as e:
-    print('Error:', e)
     bot.edit_message_text(
         f'Dikkat aayi: {str(e)[:100]}', m.chat.id, msg.message_id
     )
 
 
-print('Bot chalu ho gaya hai!')
-bot.infinity_polling(timeout=60, long_polling_timeout=60)
+if __name__ == '__main__':
+  # Web server ko background thread me chalayein
+  t = Thread(target=run_web)
+  t.start()
+  print('Bot chalu ho gaya hai!')
+  bot.infinity_polling(timeout=60, long_polling_timeout=60)
