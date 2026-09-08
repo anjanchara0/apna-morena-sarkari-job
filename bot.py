@@ -43,25 +43,20 @@ def dl(m):
 
   # Har user ke liye alag file name (chat_id + message_id) taaki video mix na ho
   unique_filename = f'video_{m.chat.id}_{m.message_id}.%(ext)s'
-
-  opts = {
-        'format': (
-            'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best'
-        ),
+opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': unique_filename,
         'quiet': True,
         'no_warnings': True,
+        # Browser impersonation Instagram aur YouTube dono ko bypass karta hai
+        'impersonate': 'chrome',
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'mweb', 'web_embedded'],
-            }
-        },
-        'http_headers': {
-            'User-Agent': (
-                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
-                ' AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0'
-                ' Mobile/15E148 Safari/604.1'
-            ),
+                'player_client': ['android', 'ios'],
+            },
+            'instagram': {
+                'include_reels': True,
+            },
         },
     }
   fn = None
