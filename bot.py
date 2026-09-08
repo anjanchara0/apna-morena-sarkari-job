@@ -21,7 +21,7 @@ def run_web():
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
-BOT_TOKEN = 'APNA_TOKEN_YAHAN'  # Apna asli token yahan dalein
+BOT_TOKEN = '8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ'  # Apna asli token yahan dalein
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)  # threaded=True se multiple users handle honge
 
 
