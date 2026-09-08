@@ -45,13 +45,18 @@ def dl(m):
   unique_filename = f'video_{m.chat.id}_{m.message_id}.%(ext)s'
 
   opts = {
-      'format': (
-          'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best'
-      ),
-      'outtmpl': unique_filename,
-      'quiet': True,
-      'no_warnings': True,
-  }
+        'format': (
+            'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best'
+        ),
+        'outtmpl': unique_filename,
+        'quiet': True,
+        'no_warnings': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web'],
+            }
+        },
+    }
 
   fn = None
   try:
