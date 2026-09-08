@@ -5,21 +5,21 @@ import telebot
 from telebot import apihelper
 import yt_dlp
 
-# Render ko zinda rakhne ke liye chhota web server
+# Render Web Server (Port 10000 zaroori hai)
 app = Flask(__name__)
 
 
 @app.route('/')
 def home():
-  return 'Bot 24/7 chal raha hai!'
+  return 'Bot is running 24/7!'
 
 
 def run_web():
-  port = int(os.environ.get('PORT', 8080))
+  port = int(os.environ.get('PORT', 10000))
   app.run(host='0.0.0.0', port=port)
 
 
-# Telegram Bot Setup
+# Telegram Bot
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
@@ -29,7 +29,9 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-  bot.reply_to(m, 'Namaste! Mujhe video link bhejein.')
+  bot.reply_to(
+      m, 'Namaste! Mujhe video link bhejein, main turant download karke dunga.'
+  )
 
 
 @bot.message_handler(func=lambda m: True)
@@ -71,9 +73,10 @@ def dl(m):
     )
 
 
-if __name__ == '__main__':
-  # Web server ko background thread me chalayein
-  t = Thread(target=run_web)
-  t.start()
-  print('Bot chalu ho gaya hai!')
-  bot.infinity_polling(timeout=60, long_polling_timeout=60)
+# Web server ko turant start karna
+web_thread = Thread(target=run_web)
+web_thread.daemon = True
+web_thread.start()
+
+print('Bot chalu ho gaya hai!')
+bot.infinity_polling(timeout=60, long_polling_timeout=60)
