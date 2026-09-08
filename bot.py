@@ -1,97 +1,83 @@
 import os
+import requests
 from threading import Thread
 from flask import Flask
 import telebot
 from telebot import apihelper
-import yt_dlp
 
 app = Flask(__name__)
 
-
 @app.route('/')
 def home():
-  return 'Bot is running 24/7!'
-
+    return "Bot is running 24/7!"
 
 def run_web():
-  port = int(os.environ.get('PORT', 10000))
-  app.run(host='0.0.0.0', port=port)
-
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
 
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
 BOT_TOKEN = '8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ'  # Apna asli token yahan dalein
-bot = telebot.TeleBot(BOT_TOKEN, threaded=True)  # threaded=True se multiple users handle honge
-
+bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-  bot.reply_to(
-      m, 'Namaste! Mujhe video link bhejein, main turant download karke dunga.'
-  )
-
+    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi link bhejein.")
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
-  url = m.text.strip()
-  if not url.startswith('http'):
-    bot.reply_to(m, 'Kripya sahi link bhejein.')
-    return
+    url = m.text.strip()
+    if not url.startswith('http'):
+        bot.reply_to(m, "Kripya sahi video link bhejein.")
+        return
 
-  msg = bot.reply_to(m, '⚡ Downloading...')
+    msg = bot.reply_to(m, "⚡ Fetching video...")
+    file_path = f"video_{m.chat.id}_{m.message_id}.mp4"
 
-  # Har user ke liye alag file name (chat_id + message_id) taaki video mix na ho
-  unique_filename = f'video_{m.chat.id}_{m.message_id}.%(ext)s'
+    try:
+        # Cobalt API ke zariye download (Cloud IP blocks ko bypass karta hai)
+        api_url = "https://co.wuk.sh/api/json"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "url": url,
+            "vQuality": "720"
+        }
 
-  opts = {
-        'format': 'best[ext=mp4]/best',
-        'outtmpl': unique_filename,
-        'quiet': True,
-        'no_warnings': True,
-        'http_headers': {
-            'User-Agent': (
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                ' (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-            ),
-            'Accept-Language': 'en-US,en;q=0.9',
-        },
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios'],
-            },
-        },
-    }
-  
-  fn = None
-  try:
-    with yt_dlp.YoutubeDL(opts) as ydl:
-      info = ydl.extract_info(url, download=True)
-      fn = ydl.prepare_filename(info)
+        r = requests.post(api_url, json=payload, headers=headers, timeout=20)
+        data = r.json()
 
-    bot.edit_message_text(
-        '🚀 Uploading to Telegram...', m.chat.id, msg.message_id
-    )
+        video_download_url = data.get('url')
+        if not video_download_url:
+            raise Exception("Video extract nahi ho saki ya private hai.")
 
-    with open(fn, 'rb') as vf:
-      bot.send_video(m.chat.id, vf, timeout=300)
+        bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
 
-    bot.delete_message(m.chat.id, msg.message_id)
+        # Video file stream karke download karna
+        with requests.get(video_download_url, stream=True, timeout=60) as v_stream:
+            v_stream.raise_for_status()
+            with open(file_path, 'wb') as f:
+                for chunk in v_stream.iter_content(chunk_size=1024*1024):
+                    f.write(chunk)
 
-  except Exception as e:
-    bot.edit_message_text(
-        f'Dikkat aayi: {str(e)[:100]}', m.chat.id, msg.message_id
-    )
+        with open(file_path, 'rb') as vf:
+            bot.send_video(m.chat.id, vf, timeout=300)
 
-  finally:
-    # File send hone ke baad turant delete hogi taaki server ki memory na bhare
-    if fn and os.path.exists(fn):
-      os.remove(fn)
+        bot.delete_message(m.chat.id, msg.message_id)
 
+    except Exception as e:
+        bot.edit_message_text(f"Dikkat aayi: {str(e)[:120]}", m.chat.id, msg.message_id)
+
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 web_thread = Thread(target=run_web)
 web_thread.daemon = True
 web_thread.start()
 
-print('Bot chalu ho gaya hai!')
+print("Bot chalu ho gaya hai!")
 bot.infinity_polling(timeout=60, long_polling_timeout=60)
