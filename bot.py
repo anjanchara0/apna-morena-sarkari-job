@@ -37,15 +37,11 @@ def dl(m):
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}_%(id)s.%(ext)s"
 
     opts = {
-        'format': 'b[acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/best',
+        'format': 'bestvideo+bestaudio/best',
+        'merge_output_format': 'mp4',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android_vr', 'android_music'],
-            }
-        }
     }
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
