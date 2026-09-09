@@ -23,12 +23,11 @@ apihelper.READ_TIMEOUT = 300
 BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # Apna bot token yahan dalein
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
-# FFmpeg binary path automatic fetch
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-    bot.reply_to(m, "Namaste! Instagram Reel link bhejein, video full audio ke saath aayegi.")
+    bot.reply_to(m, "Namaste! Reel link bhejein, audio ke saath video aayegi.")
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
@@ -37,16 +36,25 @@ def dl(m):
         bot.reply_to(m, "Kripya sahi link bhejein.")
         return
 
-    msg = bot.reply_to(m, "⚡ Downloading (Merging Audio + Video)...")
+    msg = bot.reply_to(m, "⚡ Downloading Reel...")
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}.%(ext)s"
 
+    # Instagram mobile headers + proper audio/video stream selection
     opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo+bestaudio/best[vcodec!=none][acodec!=none]/best',
         'merge_output_format': 'mp4',
         'ffmpeg_location': FFMPEG_PATH,
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 290.0.0.13.111',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
+        'postprocessors': [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4',
+        }]
     }
 
     try:
@@ -55,17 +63,17 @@ def dl(m):
 
         files = glob.glob(f"dl_{m.chat.id}_{m.message_id}*")
         if not files:
-            raise Exception("Media file download nahi ho saki.")
+            raise Exception("Video download nahi ho saki.")
 
         file_path = files[0]
-        bot.edit_message_text("🚀 Uploading with Audio...", m.chat.id, msg.message_id)
+        bot.edit_message_text("🚀 Sending...", m.chat.id, msg.message_id)
 
         size_mb = os.path.getsize(file_path) / (1024 * 1024)
         if size_mb > 49:
-            bot.edit_message_text(f"❌ File 50MB se badi hai ({size_mb:.1f} MB).", m.chat.id, msg.message_id)
+            bot.edit_message_text(f"❌ Video 50MB se badi hai ({size_mb:.1f} MB).", m.chat.id, msg.message_id)
         else:
             with open(file_path, 'rb') as vf:
-                bot.send_video(m.chat.id, vf, timeout=300)
+                bot.send_video(m.chat.id, vf, timeout=300, supports_streaming=True)
             bot.delete_message(m.chat.id, msg.message_id)
 
     except Exception as e:
