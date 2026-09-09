@@ -18,7 +18,7 @@ def start_flask():
 
 # --- APNI DETAILS YAHAN BHAREIN ---
 BOT_TOKEN = "8526721171:AAGIUtjrctud5RDNgD5uV1QUfUxWeqRm9Rg"          # BotFather se mila token yahan paste karein
-CHANNEL_USERNAME = "@apna_channel_username"  # Apne channel ka username yahan likhein (@ ke sath)
+CHANNEL_USERNAME = "@apnamorenasarkarijobbot"  # Apne channel ka username yahan likhein (@ ke sath)
 # ----------------------------------
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
