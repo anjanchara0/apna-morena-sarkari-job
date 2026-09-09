@@ -13,18 +13,19 @@ def home():
     return "Bot is running 24/7 on Railway!"
 
 def run_web():
-    port = int(os.environ.get('PORT', 5000))
+    # Railway sets PORT automatically
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
-BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # Apna asli Bot token yahan dalein
+BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # Apna asli token yahan dalein
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi Video/Reel link bhejein.")
+    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi Video/Reel/Photo link bhejein.")
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
@@ -36,7 +37,7 @@ def dl(m):
     msg = bot.reply_to(m, "⚡ Downloading...")
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}_%(id)s.%(ext)s"
 
-  opts = {
+    opts = {
         'format': 'best[height<=480][ext=mp4]/best[ext=mp4]/best',
         'outtmpl': out_tmpl,
         'quiet': True,
@@ -47,6 +48,7 @@ def dl(m):
             }
         }
     }
+
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
@@ -60,7 +62,7 @@ def dl(m):
         for file_path in files:
             size_mb = os.path.getsize(file_path) / (1024 * 1024)
             if size_mb > 49:
-                bot.reply_to(m, f"❌ Video 50MB se badi hai ({size_mb:.1f} MB), Telegram allow nahi karta.")
+                bot.reply_to(m, f"❌ File 50MB se badi hai ({size_mb:.1f} MB), Telegram bot limit 50MB hai.")
             else:
                 ext = file_path.split('.')[-1].lower()
                 with open(file_path, 'rb') as f:
@@ -83,9 +85,10 @@ def dl(m):
             except:
                 pass
 
-web_thread = Thread(target=run_web)
-web_thread.daemon = True
-web_thread.start()
+if __name__ == '__main__':
+    web_thread = Thread(target=run_web)
+    web_thread.daemon = True
+    web_thread.start()
 
-print("Bot chalu ho gaya hai!")
-bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    print("Bot chalu ho gaya hai!")
+    bot.infinity_polling(timeout=60, long_polling_timeout=60)
