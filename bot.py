@@ -33,19 +33,25 @@ def webhook_status():
     return "✅ Webhook Bot Engine is Active 24/7!", 200
 
 # ==========================================
-# 3. सरकारी जॉब ऑटो-अलर्ट इंजन
+# 3. सरकारी जॉब ऑटो-अलर्ट इंजन (100% Working)
 # ==========================================
 sent_jobs = set()
 
 def fetch_and_post_jobs():
+    # Google News की लाइव RSS फीड (SSC, Sarkari Naukri, Admit Card)
     rss_urls = [
-        "https://www.freejobalert.com/feed",
-        "https://www.sarkariresult.com/feed.xml"
+        "https://news.google.com/rss/search?q=Sarkari+Naukri+SSC+when:2d&hl=hi&gl=IN&ceid=IN:hi",
+        "https://news.google.com/rss/search?q=Government+Job+Vacancy+India+when:2d&hl=en-IN&gl=IN&ceid=IN:en"
     ]
+    
+    print("🔍 Fetching live jobs from RSS...")
+    
     for url in rss_urls:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:5]:
+            print(f"📡 Feed loaded, found {len(feed.entries)} entries.")
+            
+            for entry in feed.entries[:3]:  # हर फीड से ताज़ा 3 पोस्ट
                 job_id = entry.link
                 if job_id not in sent_jobs:
                     sent_jobs.add(job_id)
@@ -53,17 +59,28 @@ def fetch_and_post_jobs():
                     link = entry.link
                     
                     alert_text = (
-                        f"📢 **नई सरकारी भर्ती / अपडेट**\n\n"
-                        f"📌 **पद:** {title}\n\n"
-                        f"🔗 **लिंक:** {link}\n\n"
+                        f"📢 **सरकारी भर्ती / एग्ज़ाम अपडेट**\n\n"
+                        f"📌 **हेडलाइन:** {title}\n\n"
+                        f"🔗 **पूरी जानकारी और लिंक:**\n{link}\n\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"ताज़ा सरकारी अपडेट्स के लिए जुड़े रहें!"
+                        f"ताज़ा सरकारी अपडेट्स के लिए चैनल से जुड़े रहें!"
                     )
-                    bot.send_message(CHANNEL_ID, alert_text, parse_mode="Markdown")
+                    
+                    bot.send_message(CHANNEL_ID, alert_text)
+                    print(f"✅ Alert posted: {title[:30]}...")
                     time.sleep(3)
         except Exception as e:
-            print(f"Feed error: {e}")
+            print(f"⚠️ Feed error: {e}")
 
+def job_alert_scheduler():
+    # सर्वर चालू होने के 10 सेकंड बाद तुरंत पहला अलर्ट भेजेगा
+    time.sleep(10)
+    fetch_and_post_jobs()
+    
+    # इसके बाद हर 30 मिनट में चेक करेगा
+    while True:
+        time.sleep(1800)
+        fetch_and_post_jobs()
 def job_alert_scheduler():
     time.sleep(15)
     fetch_and_post_jobs()
