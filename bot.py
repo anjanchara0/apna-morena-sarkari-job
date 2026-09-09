@@ -7,19 +7,21 @@ from telebot import types
 from PIL import Image
 from flask import Flask, request
 import feedparser
+import requests
+from bs4 import BeautifulSoup
 
 # ==========================================
-# 1. कॉन्फ़िगरेशन (यहाँ अपनी डिटेल्स डालें)
+# 1. कॉन्फ़िगरेशन
 # ==========================================
 BOT_TOKEN = "8526721171:AAENlzSLW1DkNqf6EaZwDFfW5-bcfvkTa6M"
 CHANNEL_ID = "@apnamorenasarkarijob"
-WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"  # आपका Render URL
+WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 server = Flask(__name__)
 
 # ==========================================
-# 2. Webhook Endpoints (परमानेंट नो-कन्फ्लिक्ट सेटअप)
+# 2. Render Webhook Endpoints
 # ==========================================
 @server.route('/' + BOT_TOKEN, methods=['POST'])
 def get_message():
@@ -30,66 +32,90 @@ def get_message():
 
 @server.route('/')
 def webhook_status():
-    return "✅ Webhook Bot Engine is Active 24/7!", 200
+    return "✅ All-India Sarkari Job Engine Active 24/7!", 200
 
 # ==========================================
-# 3. सरकारी जॉब ऑटो-अलर्ट इंजन (100% Working)
+# 3. ऑल-इंडिया डायरेक्ट फॉर्म + हिंदी न्यूज़ इंजन
 # ==========================================
 sent_jobs = set()
 
-def fetch_and_post_jobs():
-    # Google News की लाइव RSS फीड (SSC, Sarkari Naukri, Admit Card)
-    rss_urls = [
-        "https://news.google.com/rss/search?q=Sarkari+Naukri+SSC+when:2d&hl=hi&gl=IN&ceid=IN:hi",
-        "https://news.google.com/rss/search?q=Government+Job+Vacancy+India+when:2d&hl=en-IN&gl=IN&ceid=IN:en"
+def fetch_sarkari_result_direct():
+    """सीधे SarkariResult से डायरेक्ट ऑनलाइन फॉर्म लिंक्स"""
+    url = "https://www.sarkariresult.com/latestjob/"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            post_div = soup.find('div', id='post')
+            if post_div:
+                links = post_div.find_all('a')
+                for a in links[:3]:  # ताज़ा 3 सीधे फॉर्म
+                    title = a.get_text().strip()
+                    link = a.get('href')
+                    if link and title and link not in sent_jobs:
+                        sent_jobs.add(link)
+                        if not link.startswith('http'):
+                            link = f"https://www.sarkariresult.com{link}"
+                        
+                        msg = (
+                            f"📌 **सीधा ऑनलाइन फॉर्म (Direct Application)**\n\n"
+                            f"🏢 **भर्ती:** {title}\n\n"
+                            f"🔗 **सीधा फॉर्म लिंक:**\n{link}\n\n"
+                            f"━━━━━━━━━━━━━━━━━━━\n"
+                            f"🎯 ताज़ा सरकारी फॉर्म के लिए जुड़े रहें!"
+                        )
+                        bot.send_message(CHANNEL_ID, msg)
+                        time.sleep(3)
+    except Exception as e:
+        print(f"Direct Scraping Error: {e}")
+
+def fetch_all_india_hindi_news():
+    """ऑल-इंडिया प्रमुख हिंदी न्यूज़ चैनल्स (दैनिक भास्कर, अमर उजाला, आज तक, NBT, जागरण)"""
+    hindi_channels_rss = [
+        # ऑल-इंडिया केंद्र व राज्य भर्तियां (दैनिक भास्कर/अमर उजाला/जागरण जोश नेटवर्क)
+        "https://news.google.com/rss/search?q=सरकारी+नौकरी+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi",
+        # SSC, रेलवे, बैंक, UPSC स्पेशल
+        "https://news.google.com/rss/search?q=SSC+रेलवे+UPSC+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi",
+        # पुलिस, शिक्षक, पटवारी, राज्य स्तरीय परीक्षाएं
+        "https://news.google.com/rss/search?q=पुलिस+कांस्टेबल+शिक्षक+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi",
+        # एडमिट कार्ड और आंसर-की सूचना
+        "https://news.google.com/rss/search?q=एडमिट+कार्ड+रिजल्ट+घोषित+when:1d&hl=hi&gl=IN&ceid=IN:hi"
     ]
     
-    print("🔍 Fetching live jobs from RSS...")
-    
-    for url in rss_urls:
+    for url in hindi_channels_rss:
         try:
             feed = feedparser.parse(url)
-            print(f"📡 Feed loaded, found {len(feed.entries)} entries.")
-            
-            for entry in feed.entries[:3]:  # हर फीड से ताज़ा 3 पोस्ट
-                job_id = entry.link
-                if job_id not in sent_jobs:
-                    sent_jobs.add(job_id)
-                    title = entry.title
-                    link = entry.link
+            for entry in feed.entries[:2]:
+                if entry.link not in sent_jobs:
+                    sent_jobs.add(entry.link)
                     
-                    alert_text = (
-                        f"📢 **सरकारी भर्ती / एग्ज़ाम अपडेट**\n\n"
-                        f"📌 **हेडलाइन:** {title}\n\n"
-                        f"🔗 **पूरी जानकारी और लिंक:**\n{link}\n\n"
+                    msg = (
+                        f"📢 **सरकारी भर्ती सूचना (न्यूज़ नेटवर्क)** 🇮🇳\n\n"
+                        f"📰 **अपडेट:** {entry.title}\n\n"
+                        f"👉 **पूरी खबर व आधिकारिक जानकारी:**\n{entry.link}\n\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"ताज़ा सरकारी अपडेट्स के लिए चैनल से जुड़े रहें!"
+                        f"⚡ सबसे तेज़ और सही अपडेट्स के लिए शेयर करें!"
                     )
-                    
-                    bot.send_message(CHANNEL_ID, alert_text)
-                    print(f"✅ Alert posted: {title[:30]}...")
+                    bot.send_message(CHANNEL_ID, msg)
                     time.sleep(3)
         except Exception as e:
-            print(f"⚠️ Feed error: {e}")
+            print(f"Hindi News Error: {e}")
 
-def job_alert_scheduler():
-    # सर्वर चालू होने के 10 सेकंड बाद तुरंत पहला अलर्ट भेजेगा
-    time.sleep(10)
-    fetch_and_post_jobs()
-    
-    # इसके बाद हर 30 मिनट में चेक करेगा
-    while True:
-        time.sleep(1800)
-        fetch_and_post_jobs()
 def job_alert_scheduler():
     time.sleep(15)
-    fetch_and_post_jobs()
+    # बूट होते ही तुरंत पहली बार अपडेट चेक
+    fetch_sarkari_result_direct()
+    fetch_all_india_hindi_news()
+    
+    # इसके बाद हर 10 मिनट (600 सेकंड) में चेक करेगा
     while True:
-        time.sleep(1800)  # हर 30 मिनट में चेक
-        fetch_and_post_jobs()
+        time.sleep(600)
+        fetch_sarkari_result_direct()
+        fetch_all_india_hindi_news()
 
 # ==========================================
-# 4. इमेज और सिग्नेचर रिसाइज़र
+# 4. इमेज और सिग्नेचर रिसाइज़र (सटीक सरकारी मानक)
 # ==========================================
 user_data = {}
 
@@ -97,7 +123,7 @@ user_data = {}
 def send_welcome(message):
     text = (
         "👋 **सरकारी फॉर्म इमेज/सिग्नेचर रिसाइज़र**\n\n"
-        "अपनी फोटो या सिग्नेचर भेजें। बॉट उसे सटीक KB साइज़ में तैयार करेगा।"
+        "अपनी फोटो या सिग्नेचर भेजें। बॉट उसे SSC, UPSC, MP Police आदि के लिए सही KB में कन्वर्ट करेगा।"
     )
     bot.reply_to(message, text, parse_mode="Markdown")
 
@@ -166,7 +192,7 @@ def process_resize(call):
             tag = "डॉक्यूमेंट (100-200 KB)"
 
         out_file = io.BytesIO(final_bytes)
-        out_file.name = "Sarkari_Valid_Image.jpg"
+        out_file.name = "Sarkari_Job_Resized.jpg"
 
         caption = f"✅ **{tag} तैयार है!**\n📏 सटीक साइज़: `{size_kb:.1f} KB`"
         bot.send_document(chat_id, out_file, caption=caption, parse_mode="Markdown")
@@ -175,18 +201,15 @@ def process_resize(call):
         bot.edit_message_text(f"❌ रिसाइज़ में त्रुटि: {e}", chat_id, msg.message_id)
 
 # ==========================================
-# 5. मुख्य सेटअप (Webhook रजिस्ट्रेशन और रनर)
+# 5. मुख्य एग्जीक्यूशन
 # ==========================================
 if __name__ == '__main__':
-    # अलर्ट थ्रेड चालू करें
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
 
-    # पुराना कनेक्शन हटाकर Webhook सेट करें
     bot.remove_webhook()
     time.sleep(1)
     bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-    print(f"🚀 Webhook successfully set to {WEBHOOK_URL}")
+    print(f"🚀 Master Bot Engine active at {WEBHOOK_URL}")
 
-    # Flask सर्वर सीधे मुख्य प्रोसेस में चलेगा (Render कभी Timed Out नहीं होगा)
     port = int(os.environ.get("PORT", 8080))
     server.run(host="0.0.0.0", port=port)
