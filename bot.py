@@ -31,9 +31,9 @@ def is_user_subscribed(chat_id, user_id):
         if member.status in ['member', 'administrator', 'creator']:
             return True
         return False
-    except Exception:
-        return True
-
+    except Exception as e:
+        print(f"Channel Check Error: {e}")
+        return False  # अगर एरर आए तो भी यूजर को रोक कर रखे
 def get_join_markup():
     markup = types.InlineKeyboardMarkup()
     clean_channel = CHANNEL_USERNAME.replace('@', '')
