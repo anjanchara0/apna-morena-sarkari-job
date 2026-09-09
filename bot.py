@@ -20,7 +20,7 @@ def start_flask():
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
-BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # Apna bot token yahan dalein
+BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # अपना असली बॉट टोकन डालें
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 COOKIE_CONTENT = os.environ.get('YOUTUBE_COOKIES', '')
@@ -33,7 +33,7 @@ FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-    bot.reply_to(m, "Namaste! YouTube video link bhejein, poori audio-video merge hokar mil jayegi.")
+    bot.reply_to(m, "Namaste! YouTube ya Instagram link bhejein. (50MB ke andar video aur bada hone par MP3 audio mil jayega).")
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
@@ -42,12 +42,12 @@ def dl(m):
         bot.reply_to(m, "Kripya sahi link bhejein.")
         return
 
-    msg = bot.reply_to(m, "⚡ Downloading & Merging...")
+    msg = bot.reply_to(m, "⚡ Downloading (Optimizing size)...")
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}.%(ext)s"
 
-    # Har tarah ki stream (best video + best audio) merge karega bina fail hue
+    # 1. Pehle 480p/360p video download karne ki koshish karega (taaki 50MB limit cross na ho)
     opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]/best',
         'merge_output_format': 'mp4',
         'ffmpeg_location': FFMPEG_PATH,
         'outtmpl': out_tmpl,
@@ -67,16 +67,49 @@ def dl(m):
             raise Exception("Video download nahi ho saki.")
 
         file_path = files[0]
-        bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
-
         size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        if size_mb > 49:
-            bot.reply_to(m, f"❌ File 50MB se badi hai ({size_mb:.1f} MB), Telegram limit 50MB hai.")
-        else:
+
+        # Agar video 48MB se chhoti hai toh seedha video bhej dega
+        if size_mb <= 48:
+            bot.edit_message_text("🚀 Uploading Video...", m.chat.id, msg.message_id)
             with open(file_path, 'rb') as vf:
                 bot.send_video(m.chat.id, vf, timeout=300, supports_streaming=True)
+            bot.delete_message(m.chat.id, msg.message_id)
+        else:
+            # Agar video 48MB se badi hai, toh fail hone ke badle MP3 Audio download karega
+            bot.edit_message_text(f"⚠️ Video {size_mb:.1f}MB ki hai (Telegram limit 50MB hai). MP3 Audio convert kiya ja raha hai...", m.chat.id, msg.message_id)
+            try:
+                os.remove(file_path)
+            except:
+                pass
 
-        bot.delete_message(m.chat.id, msg.message_id)
+            audio_tmpl = f"dl_{m.chat.id}_{m.message_id}_audio.%(ext)s"
+            audio_opts = {
+                'format': 'bestaudio/best',
+                'ffmpeg_location': FFMPEG_PATH,
+                'outtmpl': audio_tmpl,
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'quiet': True,
+                'no_warnings': True,
+            }
+            if os.path.exists(COOKIE_FILE):
+                audio_opts['cookiefile'] = COOKIE_FILE
+
+            with yt_dlp.YoutubeDL(audio_opts) as ydl_audio:
+                ydl_audio.download([url])
+
+            audio_files = glob.glob(f"dl_{m.chat.id}_{m.message_id}_audio*")
+            if audio_files:
+                audio_path = audio_files[0]
+                with open(audio_path, 'rb') as af:
+                    bot.send_audio(m.chat.id, af, caption="🎵 Song Audio (Size limit bypass)", timeout=300)
+                bot.delete_message(m.chat.id, msg.message_id)
+            else:
+                bot.edit_message_text("❌ Audio extract nahi ho saka.", m.chat.id, msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(f"Dikkat aayi: {str(e)[:120]}", m.chat.id, msg.message_id)
