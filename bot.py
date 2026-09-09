@@ -37,18 +37,17 @@ def dl(m):
     msg = bot.reply_to(m, "⚡ Downloading...")
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}_%(id)s.%(ext)s"
 
-    opts = {
-        'format': 'best[height<=480][ext=mp4]/best[ext=mp4]/best',
+   opts = {
+        'format': 'b[acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/best',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android_embedded', 'android_music'],
+                'player_client': ['android_embedded', 'android'],
             }
         }
     }
-
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
