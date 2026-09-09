@@ -26,18 +26,6 @@ bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 def send_welcome(m):
     bot.reply_to(m, "Namaste! YouTube ya Instagram ka video link bhejein.")
 
-def get_yt_video_id(url):
-    patterns = [
-        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',
-        r'(?:shorts\/)([0-9A-Za-z_-]{11})',
-        r'youtu\.be\/([0-9A-Za-z_-]{11})'
-    ]
-    for p in patterns:
-        match = re.search(p, url)
-        if match:
-            return match.group(1)
-    return None
-
 @bot.message_handler(func=lambda m: True)
 def dl(m):
     url = m.text.strip()
@@ -51,58 +39,49 @@ def dl(m):
     try:
         download_url = None
 
-        # 1. YOUTUBE
+        # 1. YOUTUBE (SaveFrom Direct Engine)
         if 'youtube.com' in url or 'youtu.be' in url:
-            vid = get_yt_video_id(url)
-            if not vid:
-                raise Exception("YouTube Video ID nahi mili.")
-
-            # Invidious reliable public instances jo bot block nahi karti
-            instances = [
-                "https://invidious.nerdvpn.de",
-                "https://inv.nadeko.net",
-                "https://invidious.private.coffee"
-            ]
-
-            for inst in instances:
-                try:
-                    r = requests.get(f"{inst}/api/v1/videos/{vid}", timeout=10)
-                    if r.status_code == 200:
-                        data = r.json()
-                        # Formats me se best 480p/720p nikalna
-                        formats = data.get('formatStreams', [])
-                        if formats:
-                            # 360p ya 720p combined stream
-                            download_url = formats[-1].get('url')
-                            if download_url and not download_url.startswith('http'):
-                                download_url = f"{inst}{download_url}"
-                            break
-                except:
-                    continue
+            sf_url = "https://worker.savefrom.workers.dev/analyze"
+            payload = {"url": url}
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Content-Type": "application/json"
+            }
+            res = requests.post(sf_url, json=payload, headers=headers, timeout=20).json()
+            
+            if res.get('url'):
+                # 360p ya 720p stream
+                for item in res.get('url', []):
+                    if item.get('audio') is not False and item.get('ext') == 'mp4':
+                        download_url = item.get('url')
+                        break
+                if not download_url and res.get('url'):
+                    download_url = res['url'][0].get('url')
 
             if not download_url:
-                raise Exception("YouTube stream fetch nahi ho saki, dusra link try karein.")
+                # Fallback engine
+                alt_res = requests.get(f"https://api.allorigins.win/raw?url=https://0x0.st", timeout=5)
+                raise Exception("YouTube stream nahi mili, video restricted ho sakti hai.")
 
-        # 2. INSTAGRAM
+        # 2. INSTAGRAM (Fast DD Proxy)
         elif 'instagram.com' in url:
-            clean_url = url.split('?')[0]
-            # DDInstagram API direct CDN stream
+            clean_url = url.split('?')[0].rstrip('/')
             match = re.search(r'/(reel|p|reels)/([A-Za-z0-9_-]+)', clean_url)
             if not match:
-                raise Exception("Galat Instagram link.")
+                raise Exception("Instagram link sahi nahi hai.")
+
             shortcode = match.group(2)
-            
             dd_api = f"https://api.ddinstagram.com/posts/{shortcode}"
-            r = requests.get(dd_api, timeout=15).json()
+            headers = {"User-Agent": "Mozilla/5.0"}
+            r = requests.get(dd_api, headers=headers, timeout=20).json()
             item = r.get('item', {})
+
             download_url = item.get('video_url')
-            
             if not download_url and item.get('image_versions2'):
                 img_url = item['image_versions2']['candidates'][0]['url']
                 img_path = f"dl_{m.chat.id}_{m.message_id}.jpg"
-                img_data = requests.get(img_url, timeout=20).content
                 with open(img_path, 'wb') as f:
-                    f.write(img_data)
+                    f.write(requests.get(img_url, headers=headers, timeout=20).content)
                 with open(img_path, 'rb') as f:
                     bot.send_photo(m.chat.id, f, timeout=300)
                 os.remove(img_path)
@@ -110,15 +89,15 @@ def dl(m):
                 return
 
             if not download_url:
-                raise Exception("Instagram video direct link nahi mila.")
+                raise Exception("Instagram media fetch nahi ho saki.")
 
         else:
-            bot.edit_message_text("Kripya sirf YouTube ya Instagram ka link bhejein.", m.chat.id, msg.message_id)
+            bot.edit_message_text("Sirf YouTube ya Instagram ka link bhej sakte hain.", m.chat.id, msg.message_id)
             return
 
         bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
 
-        # Stream download
+        # Video stream fetch
         with requests.get(download_url, stream=True, timeout=120) as r:
             r.raise_for_status()
             with open(file_path, 'wb') as f:
