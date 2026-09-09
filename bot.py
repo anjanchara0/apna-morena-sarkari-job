@@ -1,10 +1,10 @@
 import os
-import glob
+import re
+import requests
 from threading import Thread
 from flask import Flask
 import telebot
 from telebot import apihelper
-import yt_dlp
 
 app = Flask(__name__)
 
@@ -24,7 +24,19 @@ bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
-    bot.reply_to(m, "Namaste! YouTube ya Instagram ka koi bhi Video/Reel/Photo link bhejein.")
+    bot.reply_to(m, "Namaste! YouTube ya Instagram ka video link bhejein.")
+
+def get_yt_video_id(url):
+    patterns = [
+        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',
+        r'(?:shorts\/)([0-9A-Za-z_-]{11})',
+        r'youtu\.be\/([0-9A-Za-z_-]{11})'
+    ]
+    for p in patterns:
+        match = re.search(p, url)
+        if match:
+            return match.group(1)
+    return None
 
 @bot.message_handler(func=lambda m: True)
 def dl(m):
@@ -34,58 +46,101 @@ def dl(m):
         return
 
     msg = bot.reply_to(m, "⚡ Downloading...")
-    out_tmpl = f"dl_{m.chat.id}_{m.message_id}_%(id)s.%(ext)s"
+    file_path = f"dl_{m.chat.id}_{m.message_id}.mp4"
 
-    opts = {
-        'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best',
-        'outtmpl': out_tmpl,
-        'quiet': True,
-        'no_warnings': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'mweb'],
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-            'Accept-Language': 'en-US,en;q=0.9',
-        }
-    }
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
+        download_url = None
 
-        downloaded_files = glob.glob(f"dl_{m.chat.id}_{m.message_id}_*")
-        if not downloaded_files:
-            raise Exception("File extract nahi ho saki.")
+        # 1. YOUTUBE
+        if 'youtube.com' in url or 'youtu.be' in url:
+            vid = get_yt_video_id(url)
+            if not vid:
+                raise Exception("YouTube Video ID nahi mili.")
+
+            # Invidious reliable public instances jo bot block nahi karti
+            instances = [
+                "https://invidious.nerdvpn.de",
+                "https://inv.nadeko.net",
+                "https://invidious.private.coffee"
+            ]
+
+            for inst in instances:
+                try:
+                    r = requests.get(f"{inst}/api/v1/videos/{vid}", timeout=10)
+                    if r.status_code == 200:
+                        data = r.json()
+                        # Formats me se best 480p/720p nikalna
+                        formats = data.get('formatStreams', [])
+                        if formats:
+                            # 360p ya 720p combined stream
+                            download_url = formats[-1].get('url')
+                            if download_url and not download_url.startswith('http'):
+                                download_url = f"{inst}{download_url}"
+                            break
+                except:
+                    continue
+
+            if not download_url:
+                raise Exception("YouTube stream fetch nahi ho saki, dusra link try karein.")
+
+        # 2. INSTAGRAM
+        elif 'instagram.com' in url:
+            clean_url = url.split('?')[0]
+            # DDInstagram API direct CDN stream
+            match = re.search(r'/(reel|p|reels)/([A-Za-z0-9_-]+)', clean_url)
+            if not match:
+                raise Exception("Galat Instagram link.")
+            shortcode = match.group(2)
+            
+            dd_api = f"https://api.ddinstagram.com/posts/{shortcode}"
+            r = requests.get(dd_api, timeout=15).json()
+            item = r.get('item', {})
+            download_url = item.get('video_url')
+            
+            if not download_url and item.get('image_versions2'):
+                img_url = item['image_versions2']['candidates'][0]['url']
+                img_path = f"dl_{m.chat.id}_{m.message_id}.jpg"
+                img_data = requests.get(img_url, timeout=20).content
+                with open(img_path, 'wb') as f:
+                    f.write(img_data)
+                with open(img_path, 'rb') as f:
+                    bot.send_photo(m.chat.id, f, timeout=300)
+                os.remove(img_path)
+                bot.delete_message(m.chat.id, msg.message_id)
+                return
+
+            if not download_url:
+                raise Exception("Instagram video direct link nahi mila.")
+
+        else:
+            bot.edit_message_text("Kripya sirf YouTube ya Instagram ka link bhejein.", m.chat.id, msg.message_id)
+            return
 
         bot.edit_message_text("🚀 Uploading to Telegram...", m.chat.id, msg.message_id)
 
-        for file_path in downloaded_files:
-            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-            if file_size_mb > 49:
-                bot.reply_to(m, f"❌ File 50MB se badi hai ({file_size_mb:.1f} MB), Telegram bot limit 50MB hai.")
-            else:
-                ext = file_path.split('.')[-1].lower()
-                with open(file_path, 'rb') as f:
-                    if ext in ['mp4', 'mkv', 'webm', 'mov']:
-                        bot.send_video(m.chat.id, f, timeout=300)
-                    elif ext in ['jpg', 'jpeg', 'png', 'webp']:
-                        bot.send_photo(m.chat.id, f, timeout=300)
-                    else:
-                        bot.send_document(m.chat.id, f, timeout=300)
+        # Stream download
+        with requests.get(download_url, stream=True, timeout=120) as r:
+            r.raise_for_status()
+            with open(file_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
 
-        bot.delete_message(m.chat.id, msg.message_id)
+        # Size check
+        size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if size_mb > 49:
+            bot.edit_message_text(f"❌ Video 50MB se badi hai ({size_mb:.1f} MB), Telegram allow nahi karta.", m.chat.id, msg.message_id)
+        else:
+            with open(file_path, 'rb') as vf:
+                bot.send_video(m.chat.id, vf, timeout=300)
+            bot.delete_message(m.chat.id, msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(f"Dikkat aayi: {str(e)[:120]}", m.chat.id, msg.message_id)
 
     finally:
-        for f in glob.glob(f"dl_{m.chat.id}_{m.message_id}_*"):
-            try:
-                os.remove(f)
-            except:
-                pass
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 web_thread = Thread(target=run_web)
 web_thread.daemon = True
