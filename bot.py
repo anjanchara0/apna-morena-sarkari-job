@@ -1,30 +1,81 @@
 import os
 import io
+import time
 import threading
 from flask import Flask
 from PIL import Image
 import telebot
 from telebot import types
+import feedparser
 
 server = Flask(__name__)
 
 @server.route('/')
 def home():
-    return "Sarkari Tool Bot is Running 24/7 on Railway!"
+    return "Sarkari Tool & Auto-Alert Bot is Running 24/7 on Railway!"
 
 def start_flask():
     port = int(os.environ.get("PORT", 8080))
     server.run(host="0.0.0.0", port=port)
 
-# --- APNI DETAILS YAHAN BHAREIN ---
-BOT_TOKEN = "8526721171:AAGIUtjrctud5RDNgD5uV1QUfUxWeqRm9Rg"          # BotFather se mila token yahan paste karein
-CHANNEL_USERNAME = "@apnamorenasarkarijobbot"  # Apne channel ka username yahan likhein (@ ke sath)
-# ----------------------------------
+# ==================== CONFIGURATION ====================
+BOT_TOKEN = "8526721171:AAGIUtjrctud5RDNgD5uV1QUfUxWeqRm9Rg"          # BotFather से मिला टोकन
+CHANNEL_USERNAME = "@apnamorenasarkarijobbot"  # अपने चैनल का यूजरनेम (@ के साथ)
+# =======================================================
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 user_images = {}
+posted_links = set()  # पुरानी खबरों को याद रखने के लिए ताकि बार-बार रिपीट न हों
 
+# RSS Feeds की लिस्ट (जहाँ से ऑटोमैटिक सरकारी अपडेट्स आएँगे)
+FEEDS = [
+    "https://www.freejobalert.com/feed/",
+    "https://timesofindia.indiatimes.com/rssfeeds/913168846.cms"  # Education & Exam Alerts
+]
+
+# ---------- ऑटोमैटिक जॉब और एग्जाम अलर्ट्स इंजन ----------
+def job_alert_scheduler():
+    time.sleep(15)  # बॉट स्टार्ट होने के 15 सेकंड बाद पहला चेक करेगा
+    while True:
+        try:
+            for feed_url in FEEDS:
+                feed = feedparser.parse(feed_url)
+                # सबसे ताज़ा 3 अपडेट्स चेक करना
+                for entry in feed.entries[:3]:
+                    link = entry.get('link', '')
+                    title = entry.get('title', 'नई सरकारी नौकरी / भर्ती सूचना')
+
+                    # अगर यह अपडेट पहले पोस्ट नहीं हुआ है
+                    if link and link not in posted_links:
+                        posted_links.add(link)
+
+                        # सुंदर टेलीग्राम मैसेज तैयार करना
+                        message_text = (
+                            "📢 **सरकारी नौकरी / परीक्षा नई अपडेट!**\n\n"
+                            f"📌 **{title}**\n\n"
+                            "ℹ️ पूरी जानकारी व ऑनलाइन आवेदन के लिए नीचे दिए गए लिंक पर क्लिक करें:\n"
+                            f"🔗 {link}\n\n"
+                            "━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🔔 सबसे पहले अपडेट पाने के लिए जुड़े रहें: {CHANNEL_USERNAME}\n"
+                            "⚡ फोटो/साइन 20KB-50KB करने के लिए हमारे बॉट का उपयोग करें।"
+                        )
+
+                        # सीधे आपके चैनल में ऑटोमैटिक पोस्ट
+                        bot.send_message(
+                            CHANNEL_USERNAME,
+                            message_text,
+                            parse_mode="Markdown",
+                            disable_web_page_preview=False
+                        )
+                        time.sleep(5)  # दो पोस्ट के बीच 5 सेकंड का अंतर
+        except Exception as e:
+            print(f"RSS Alert Error: {e}")
+
+        # हर 30 मिनट (1800 सेकंड) में दोबारा नई अपडेट चेक करेगा
+        time.sleep(1800)
+
+# ---------- चैनल सब्सक्रिप्शन चेक ----------
 def is_user_subscribed(chat_id, user_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
@@ -32,8 +83,9 @@ def is_user_subscribed(chat_id, user_id):
             return True
         return False
     except Exception as e:
-        print(f"Channel Check Error: {e}")
-        return False  # अगर एरर आए तो भी यूजर को रोक कर रखे
+        print(f"Check error: {e}")
+        return False
+
 def get_join_markup():
     markup = types.InlineKeyboardMarkup()
     clean_channel = CHANNEL_USERNAME.replace('@', '')
@@ -75,6 +127,7 @@ def handle_check_join(call):
     else:
         bot.answer_callback_query(call.id, "❌ आपने अभी तक चैनल जॉइन नहीं किया है! कृपया पहले जॉइन करें।", show_alert=True)
 
+# ---------- फोटो/सिग्नेचर रिसाइज़िंग ----------
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_image(message):
     user_id = message.from_user.id
@@ -112,11 +165,8 @@ def compress_to_target(image_bytes, min_kb, max_kb):
 
     img.thumbnail((800, 800), Image.Resampling.LANCZOS)
 
-    target_quality = 85
-    step = 5
     out_io = io.BytesIO()
-
-    for q in range(95, 10, -step):
+    for q in range(95, 10, -5):
         out_io.seek(0)
         out_io.truncate(0)
         img.save(out_io, format='JPEG', quality=q, optimize=True)
@@ -156,9 +206,15 @@ def handle_compression(call):
     bot.delete_message(call.message.chat.id, msg.message_id)
 
 if __name__ == '__main__':
-    t = threading.Thread(target=start_flask)
-    t.daemon = True
-    t.start()
+    # 1. Flask सर्वर को बैकग्राउंड में चलाना
+    t_flask = threading.Thread(target=start_flask)
+    t_flask.daemon = True
+    t_flask.start()
 
-    print("Bot chalu ho gaya hai!")
+    # 2. ऑटोमैटिक जॉब अलर्ट्स इंजन को बैकग्राउंड में चलाना
+    t_alerts = threading.Thread(target=job_alert_scheduler)
+    t_alerts.daemon = True
+    t_alerts.start()
+
+    print("Sarkari Tool + Auto Alerts Bot Running!")
     bot.infinity_polling(timeout=60, long_polling_timeout=60)
