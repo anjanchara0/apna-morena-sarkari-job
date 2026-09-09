@@ -2,4 +2,5 @@ pyTelegramBotAPI
 Pillow
 Flask
 feedparser
+beautifulsoup4
 requests
