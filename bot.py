@@ -5,32 +5,35 @@ import threading
 import telebot
 from telebot import types
 from PIL import Image
-from flask import Flask
+from flask import Flask, request
 import feedparser
 
 # ==========================================
-# 1. कॉन्फ़िगरेशन
+# 1. कॉन्फ़िगरेशन (यहाँ अपनी डिटेल्स डालें)
 # ==========================================
 BOT_TOKEN = "8526721171:AAENlzSLW1DkNqf6EaZwDFfW5-bcfvkTa6M"
-CHANNEL_ID = "@apnamorenasarkarijobbot"  # उदाहरण: "@apna_morena_sarkari_job"
+CHANNEL_ID = "@apnamorenasarkarijobbot"
+WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"  # आपका Render URL
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# ==========================================
-# 2. Render Uptime के लिए Flask सर्वर
-# ==========================================
 server = Flask(__name__)
 
-@server.route('/')
-def home():
-    return "✅ Sarkari Job Bot & Resizer Live 24/7!"
+# ==========================================
+# 2. Webhook Endpoints (परमानेंट नो-कन्फ्लिक्ट सेटअप)
+# ==========================================
+@server.route('/' + BOT_TOKEN, methods=['POST'])
+def get_message():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
 
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    server.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+@server.route('/')
+def webhook_status():
+    return "✅ Webhook Bot Engine is Active 24/7!", 200
 
 # ==========================================
-# 3. लाइव सरकारी जॉब और रिजल्ट अलर्ट इंजन
+# 3. सरकारी जॉब ऑटो-अलर्ट इंजन
 # ==========================================
 sent_jobs = set()
 
@@ -39,11 +42,10 @@ def fetch_and_post_jobs():
         "https://www.freejobalert.com/feed",
         "https://www.sarkariresult.com/feed.xml"
     ]
-    
     for url in rss_urls:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:5]:  # ताज़ा 5 अपडेट्स
+            for entry in feed.entries[:5]:
                 job_id = entry.link
                 if job_id not in sent_jobs:
                     sent_jobs.add(job_id)
@@ -51,52 +53,43 @@ def fetch_and_post_jobs():
                     link = entry.link
                     
                     alert_text = (
-                        f"📢 **नई सरकारी नौकरी / अपडेट**\n\n"
-                        f"📌 **पद/परीक्षा:** {title}\n\n"
-                        f"🔗 **विस्तृत जानकारी व ऑनलाइन फॉर्म:**\n{link}\n\n"
+                        f"📢 **नई सरकारी भर्ती / अपडेट**\n\n"
+                        f"📌 **पद:** {title}\n\n"
+                        f"🔗 **लिंक:** {link}\n\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"रोज़ाना ताज़ा अपडेट के लिए जुड़े रहें!"
+                        f"ताज़ा सरकारी अपडेट्स के लिए जुड़े रहें!"
                     )
-                    
                     bot.send_message(CHANNEL_ID, alert_text, parse_mode="Markdown")
-                    time.sleep(3)  # टेलीग्राम की सीमा से बचने के लिए छोटा गैप
+                    time.sleep(3)
         except Exception as e:
-            print(f"Feed error ({url}): {e}")
+            print(f"Feed error: {e}")
 
 def job_alert_scheduler():
-    time.sleep(10)
-    # बूट होते ही पहला अलर्ट चेक
+    time.sleep(15)
     fetch_and_post_jobs()
-    
     while True:
-        time.sleep(1800)  # हर 30 मिनट में नई वैकेंसी चेक करेगा
+        time.sleep(1800)  # हर 30 मिनट में चेक
         fetch_and_post_jobs()
 
 # ==========================================
-# 4. टेलीग्राम बॉट और सटीक KB इमेज रिसाइज़र
+# 4. इमेज और सिग्नेचर रिसाइज़र
 # ==========================================
 user_data = {}
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     text = (
-        "👋 **सरकारी फॉर्म फोटो/सिग्नेचर रिसाइज़र में आपका स्वागत है!**\n\n"
-        "📸 अपनी फोटो या सिग्नेचर भेजें। बॉट उसे सरकारी फॉर्म (SSC, UPSC, State Exam) "
-        "के सटीक KB साइज़ में कन्वर्ट करके देगा।"
+        "👋 **सरकारी फॉर्म इमेज/सिग्नेचर रिसाइज़र**\n\n"
+        "अपनी फोटो या सिग्नेचर भेजें। बॉट उसे सटीक KB साइज़ में तैयार करेगा।"
     )
     bot.reply_to(message, text, parse_mode="Markdown")
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_docs_photo(message):
     try:
-        if message.content_type == 'photo':
-            file_id = message.photo[-1].file_id
-        else:
-            file_id = message.document.file_id
-
+        file_id = message.photo[-1].file_id if message.content_type == 'photo' else message.document.file_id
         file_info = bot.get_file(file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        user_data[message.chat.id] = downloaded_file
+        user_data[message.chat.id] = bot.download_file(file_info.file_path)
 
         markup = types.InlineKeyboardMarkup(row_width=2)
         btn1 = types.InlineKeyboardButton("📷 पासपोर्ट फोटो (20 - 50 KB)", callback_data="photo_50")
@@ -110,12 +103,10 @@ def handle_docs_photo(message):
         bot.reply_to(message, f"❌ एरर: {e}")
 
 def resize_to_target_kb(image, max_kb, target_width):
-    # पहलू अनुपात (Aspect Ratio) बनाए रखते हुए डाइमेंशन सेट करें
     w_percent = (target_width / float(image.size[0]))
     h_size = int((float(image.size[1]) * float(w_percent)))
     img_resized = image.resize((target_width, h_size), Image.Resampling.LANCZOS)
 
-    # क्वालिटी लूप ताकि साइज़ लक्ष्य के भीतर ही रहे
     quality = 90
     while quality >= 10:
         buf = io.BytesIO()
@@ -125,10 +116,9 @@ def resize_to_target_kb(image, max_kb, target_width):
             return buf.getvalue(), size_kb
         quality -= 5
 
-    # अगर फिर भी बड़ा रहे तो डाइमेंशन 20% और घटाएँ
-    img_resized = img_resized.resize((int(target_width * 0.8), int(h_size * 0.8)), Image.Resampling.LANCZOS)
+    img_resized = img_resized.resize((int(target_width * 0.75), int(h_size * 0.75)), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
-    img_resized.save(buf, format="JPEG", quality=70, optimize=True)
+    img_resized.save(buf, format="JPEG", quality=65, optimize=True)
     return buf.getvalue(), len(buf.getvalue()) / 1024
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -145,7 +135,6 @@ def process_resize(call):
         img_bytes = user_data[chat_id]
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
 
-        # सरकारी फॉर्म के अनुसार सटीक चौड़ाई और अधिकतम साइज़
         if call.data == "sign_20":
             final_bytes, size_kb = resize_to_target_kb(image, max_kb=19, target_width=300)
             tag = "सिग्नेचर (10-20 KB)"
@@ -160,40 +149,27 @@ def process_resize(call):
             tag = "डॉक्यूमेंट (100-200 KB)"
 
         out_file = io.BytesIO(final_bytes)
-        out_file.name = "Sarkari_Form_Valid.jpg"
+        out_file.name = "Sarkari_Valid_Image.jpg"
 
-        caption = f"✅ **{tag} तैयार है!**\n📏 सटीक साइज़: `{size_kb:.1f} KB`\n*(सरकारी पोर्टल पर अपलोड के लिए तैयार)*"
+        caption = f"✅ **{tag} तैयार है!**\n📏 सटीक साइज़: `{size_kb:.1f} KB`"
         bot.send_document(chat_id, out_file, caption=caption, parse_mode="Markdown")
         bot.delete_message(chat_id, msg.message_id)
-
     except Exception as e:
         bot.edit_message_text(f"❌ रिसाइज़ में त्रुटि: {e}", chat_id, msg.message_id)
 
 # ==========================================
-# 5. रनर
+# 5. मुख्य सेटअप (Webhook रजिस्ट्रेशन और रनर)
 # ==========================================
 if __name__ == '__main__':
-    # वेब सर्वर स्टार्ट
-    threading.Thread(target=run_flask, daemon=True).start()
-    
-    # जॉब अलर्ट इंजन स्टार्ट
+    # अलर्ट थ्रेड चालू करें
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
-    
-    print("🚀 Bot Engine Initializing...")
-    
-    # टेलीग्राम पर पुराने किसी भी अटके हुए वेबहुक/कनेक्शन को पहले ड्रॉप करें
-    try:
-        bot.remove_webhook()
-    except Exception:
-        pass
-    
-    time.sleep(2)
-    print("🚀 Bot Engine Running with Live Job Feeds & Smart Resizer!")
-    
-    # रीस्टार्ट के टकराव से बचने के लिए सेफ लूप
-    while True:
-        try:
-            bot.polling(none_stop=True, interval=3, timeout=20, skip_pending=True)
-        except Exception as e:
-            print(f"Polling recovered from error: {e}")
-            time.sleep(5)
+
+    # पुराना कनेक्शन हटाकर Webhook सेट करें
+    bot.remove_webhook()
+    time.sleep(1)
+    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+    print(f"🚀 Webhook successfully set to {WEBHOOK_URL}")
+
+    # Flask सर्वर सीधे मुख्य प्रोसेस में चलेगा (Render कभी Timed Out नहीं होगा)
+    port = int(os.environ.get("PORT", 8080))
+    server.run(host="0.0.0.0", port=port)
