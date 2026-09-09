@@ -12,7 +12,7 @@ import feedparser
 # 1. कॉन्फ़िगरेशन (यहाँ अपनी डिटेल्स डालें)
 # ==========================================
 BOT_TOKEN = "8526721171:AAENlzSLW1DkNqf6EaZwDFfW5-bcfvkTa6M"
-CHANNEL_ID = "@apnamorenasarkarijobbot"
+CHANNEL_ID = "@apnamorenasarkarijob"
 WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"  # आपका Render URL
 
 bot = telebot.TeleBot(BOT_TOKEN)
