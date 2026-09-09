@@ -37,21 +37,20 @@ def dl(m):
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}_%(id)s.%(ext)s"
 
     opts = {
-        'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best',
+        'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-        },
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios'],
+                'player_client': ['ios', 'mweb'],
             }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'Accept-Language': 'en-US,en;q=0.9',
         }
     }
-
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
