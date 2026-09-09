@@ -217,9 +217,9 @@ def handle_compression(call):
     bot.delete_message(call.message.chat.id, msg.message_id)
 
 if __name__ == '__main__':
-    t_flask = threading.Thread(target=start_flask)
-    t_flask.daemon = True
-    t_flask.start()
+   # t_flask = threading.Thread(target=start_flask)
+   # t_flask.daemon = True
+   # t_flask.start()
 
     t_alerts = threading.Thread(target=job_alert_scheduler)
     t_alerts.daemon = True
