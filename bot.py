@@ -37,19 +37,14 @@ def dl(m):
     out_tmpl = f"dl_{m.chat.id}_{m.message_id}_%(id)s.%(ext)s"
 
     opts = {
-        'format': 'b[ext=mp4]/best[ext=mp4]/b/best',
+        'format': 'b[acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/best',
         'outtmpl': out_tmpl,
         'quiet': True,
         'no_warnings': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['web_embedded', 'android_creator'],
-                'player_skip': ['webpage', 'configs']
+                'player_client': ['android_vr', 'android_music'],
             }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            'Referer': 'https://www.google.com/'
         }
     }
     try:
