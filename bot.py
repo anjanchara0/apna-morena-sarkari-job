@@ -19,8 +19,15 @@ def start_flask():
 apihelper.CONNECT_TIMEOUT = 300
 apihelper.READ_TIMEOUT = 300
 
-BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # अपना असली बॉट टोकन यहाँ पेस्ट करें
+BOT_TOKEN = "8971427857:AAEaGfBJ3OzIM4j3_uPWLzbZDXwE1MUTZWQ"  # अपना असली बॉट टोकन यहाँ डालें
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
+
+# Railway Variable se cookies automatically load karna
+COOKIE_CONTENT = os.environ.get('YOUTUBE_COOKIES', '')
+COOKIE_FILE = '/tmp/youtube_cookies.txt'
+if COOKIE_CONTENT:
+    with open(COOKIE_FILE, 'w', encoding='utf-8') as cf:
+        cf.write(COOKIE_CONTENT)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(m):
@@ -39,10 +46,12 @@ def dl(m):
     opts = {
         'format': 'b[acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/best',
         'outtmpl': out_tmpl,
-        'cookiefile': 'cookies.txt',
         'quiet': True,
         'no_warnings': True,
     }
+
+    if os.path.exists(COOKIE_FILE):
+        opts['cookiefile'] = COOKIE_FILE
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -57,7 +66,7 @@ def dl(m):
         for file_path in files:
             size_mb = os.path.getsize(file_path) / (1024 * 1024)
             if size_mb > 49:
-                bot.reply_to(m, f"❌ File 50MB se badi hai ({size_mb:.1f} MB), Telegram bot limit 50MB hai.")
+                bot.reply_to(m, f"❌ File 50MB se badi hai ({size_mb:.1f} MB), Telegram limit 50MB hai.")
             else:
                 with open(file_path, 'rb') as vf:
                     bot.send_video(m.chat.id, vf, timeout=300, supports_streaming=True)
