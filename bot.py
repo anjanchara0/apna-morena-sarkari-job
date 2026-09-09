@@ -173,7 +173,27 @@ def process_resize(call):
 # 5. रनर
 # ==========================================
 if __name__ == '__main__':
+    # वेब सर्वर स्टार्ट
     threading.Thread(target=run_flask, daemon=True).start()
+    
+    # जॉब अलर्ट इंजन स्टार्ट
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
+    
+    print("🚀 Bot Engine Initializing...")
+    
+    # टेलीग्राम पर पुराने किसी भी अटके हुए वेबहुक/कनेक्शन को पहले ड्रॉप करें
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
+    
+    time.sleep(2)
     print("🚀 Bot Engine Running with Live Job Feeds & Smart Resizer!")
-    bot.infinity_polling(skip_pending=True)
+    
+    # रीस्टार्ट के टकराव से बचने के लिए सेफ लूप
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=3, timeout=20, skip_pending=True)
+        except Exception as e:
+            print(f"Polling recovered from error: {e}")
+            time.sleep(5)
