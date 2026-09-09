@@ -20,7 +20,7 @@ def start_flask():
     server.run(host="0.0.0.0", port=port)
 
 # ==================== CONFIGURATION ====================
-BOT_TOKEN = "8526721171:AAGIUtjrctud5RDNgD5uV1QUfUxWeqRm9Rg"          # BotFather से मिला टोकन
+BOT_TOKEN = "8526721171:AAENlzSLW1DkNqf6EaZwDFfW5-bcfvkTa6M"          # BotFather से मिला टोकन
 CHANNEL_USERNAME = "@apnamorenasarkarijobbot"  # अपने चैनल का यूजरनेम (@ के साथ)
 # =======================================================
 
