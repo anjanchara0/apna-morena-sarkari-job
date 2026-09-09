@@ -226,4 +226,4 @@ if __name__ == '__main__':
     t_alerts.start()
 
     print("Bot is Running with Auto-Alerts Engine!")
-    bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    bot.polling(none_stop=True, interval=2, timeout=30)
