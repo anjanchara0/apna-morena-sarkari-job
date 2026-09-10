@@ -221,7 +221,7 @@ def apply_name_and_date(image_bytes, name, date_text):
     name_str = name.strip().upper()
     date_str = date_text.strip().upper()
     if not date_str.startswith("DOB") and not date_str.startswith("DOP") and not date_str.startswith("DATE"):
-        date_display = f"DOP: {date_str}"
+        date_display = f"DOB: {date_str}"
     else:
         date_display = date_str
 
