@@ -904,16 +904,33 @@ def handle_photos_and_docs(message):
         markup.add(b1, b2, b3, b4)
         bot.reply_to(message, "⚙️ **किस सरकारी मानक साइज़ में कन्वर्ट करना है?**", reply_markup=markup, parse_mode="Markdown")
 
+
 # ==========================================
-# 11. मुख्य रनर
+# 11. मुख्य रनर (Safe Webhook with Rate-Limit Handling)
 # ==========================================
 if __name__ == '__main__':
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
 
-    bot.remove_webhook()
-    time.sleep(1)
-    bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-    print(f"🚀 Master Bot Engine active at {WEBHOOK_URL}")
+    # टेलीग्राम रेट-लिमिट (429) से बचने के लिए सेफ लूप
+    webhook_set = False
+    for attempt in range(5):
+        try:
+            bot.remove_webhook()
+            time.sleep(2)
+            bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+            print(f"🚀 Master Bot Engine active at {WEBHOOK_URL}")
+            webhook_set = True
+            break
+        except telebot.apihelper.ApiTelegramException as e:
+            if e.error_code == 429:
+                print(f"⚠️ Telegram Rate Limit (429). 5 सेकंड रुक रहे हैं... (Attempt {attempt+1})")
+                time.sleep(5)
+            else:
+                print(f"⚠️ Webhook Exception: {e}")
+                time.sleep(2)
+        except Exception as ex:
+            print(f"⚠️ Error: {ex}")
+            time.sleep(2)
 
     port = int(os.environ.get("PORT", 8080))
     server.run(host="0.0.0.0", port=port)
