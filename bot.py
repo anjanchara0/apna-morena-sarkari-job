@@ -1,4 +1,3 @@
-
 import os
 import io
 import time
@@ -48,7 +47,6 @@ def webhook_status():
 def is_user_subscribed(chat_id, user_id):
     try:
         member = bot.get_chat_member(CHANNEL_ID, user_id)
-        # केवल तभी True जब यूजर सच में चैनल में प्रेजेंट हो
         if member.status in ['member', 'administrator', 'creator']:
             return True
         return False
@@ -225,7 +223,7 @@ def send_welcome(message):
         "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
         "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें (100% सरकारी मानक)\n"
         "• 📄 PG, UG, Diploma, Exp युक्त मॉडर्न 2-कॉलम CV PDF\n"
-        "• 🧠 असीमित ऑल-इंडिया परीक्षा लाइव क्विज़\n\n"
+        "• 🧠 असीमित द्विभाषी (हिंदी + इंग्लिश) परीक्षा क्विज़\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_menu())
@@ -367,74 +365,170 @@ def apply_name_and_date(image_bytes, name, date_text):
     return buf.getvalue()
 
 # ==========================================
-# 8. फीचर 3: असीमित लाइव ऑनलाइन क्विज़ API इंजन (Never-Ending)
+# 8. फीचर 3: असीमित द्विभाषी (Hindi + English) क्विज़ इंजन
 # ==========================================
-CATEGORY_MAP = {
-    "ssc": {"cat_id": 9, "title": "SSC (General Knowledge & History)"},
-    "railway": {"cat_id": 17, "title": "Railway (Science & Nature)"},
-    "vyapam": {"cat_id": 23, "title": "MP पटवारी / व्यापमं (History & Polity)"},
-    "police": {"cat_id": 22, "title": "पुलिस भर्ती (Geography & General Awareness)"},
-    "bank": {"cat_id": 9, "title": "बैंकिंग (General Awareness & Economy)"},
-    "upsc": {"cat_id": 24, "title": "UPSC / State PCS (Politics & Governance)"}
-}
-
-# ऑफ़लाइन फ़ॉलबैक बैकअप (अगर इंटरनेट API 1 सेकंड के लिए स्लो हो)
-FALLBACK_QUESTIONS = {
-    "ssc": {"q": "भारतीय संविधान की 8वीं अनुसूची में कुल कितनी भाषाएं हैं?", "options": ["18", "22", "24", "14"], "correct": 1, "year": "SSC CGL PYQ"},
-    "railway": {"q": "मानव शरीर में रक्त का थक्का जमाने में कौन सा विटामिन सहायक है?", "options": ["विटामिन A", "विटामिन B", "विटामिन K", "विटामिन D"], "correct": 2, "year": "RRB NTPC PYQ"},
-    "vyapam": {"q": "मध्य प्रदेश में तानसेन समारोह किस शहर में आयोजित होता है?", "options": ["भोपाल", "इंदौर", "ग्वालियर", "उज्जैन"], "correct": 2, "year": "MP Patwari PYQ"},
-    "police": {"q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0, "year": "Police Constable PYQ"},
-    "bank": {"q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0, "year": "Bank PO PYQ"},
-    "upsc": {"q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "गोखले"], "correct": 0, "year": "UPSC Prelims PYQ"}
-}
-
+user_lang_pref = {}
 active_quiz_cache = {}
 
-def fetch_live_quiz_question(category):
-    """लाइव इंटरनेट API से अनलिमिटेड सवाल फेच करने का फंक्शन"""
+CATEGORY_MAP = {
+    "ssc": {"cat_id": 9, "title_hi": "SSC (सामान्य ज्ञान व इतिहास)", "title_en": "SSC (General Knowledge)"},
+    "railway": {"cat_id": 17, "title_hi": "रेलवे (सामान्य विज्ञान)", "title_en": "Railway (General Science)"},
+    "vyapam": {"cat_id": 23, "title_hi": "MP पटवारी / व्यापमं (इतिहास व राजव्यवस्था)", "title_en": "MP Vyapam / Patwari"},
+    "police": {"cat_id": 22, "title_hi": "पुलिस भर्ती (भूगोल व सामान्य ज्ञान)", "title_en": "Police Constable & SI"},
+    "bank": {"cat_id": 9, "title_hi": "बैंकिंग (अर्थव्यवस्था व करंट अफेयर्स)", "title_en": "Banking & Economy"},
+    "upsc": {"cat_id": 24, "title_hi": "UPSC / State PCS (संविधान व राजव्यवस्था)", "title_en": "UPSC / State PSC"}
+}
+
+HINDI_PYQ_BANK = {
+    "ssc": [
+        {"q": "भारतीय संविधान की कौन सी अनुसूची 'मान्यता प्राप्त भाषाओं' से संबंधित है?", "options": ["7वीं अनुसूची", "8वीं अनुसूची", "9वीं अनुसूची", "10वीं अनुसूची"], "correct": 1, "year": "SSC CGL PYQ"},
+        {"q": "पानीपत की पहली लड़ाई (1526 ई.) किसके बीच लड़ी गई थी?", "options": ["बाबर और इब्राहिम लोदी", "अकबर और हेमू", "हुमायूं और शेरशाह", "बाबर और राणा सांगा"], "correct": 0, "year": "SSC CHSL PYQ"},
+        {"q": "भारत का पहला राष्ट्रीय उद्यान (National Park) कौन सा है?", "options": ["जिम कॉर्बेट", "काजीरंगा", "गिर राष्ट्रीय उद्यान", "कान्हा किसली"], "correct": 0, "year": "SSC MTS PYQ"},
+        {"q": "मानव रक्त का सामान्य pH मान कितना होता है?", "options": ["6.4", "7.0", "7.4", "8.2"], "correct": 2, "year": "SSC CPO PYQ"}
+    ],
+    "railway": [
+        {"q": "मानव शरीर में रक्त का थक्का (Blood Clot) जमाने में कौन सा विटामिन सहायक होता है?", "options": ["विटामिन A", "विटामिन C", "विटामिन K", "विटामिन D"], "correct": 2, "year": "RRB NTPC PYQ"},
+        {"q": "ध्वनि की चाल (Speed of Sound) सबसे अधिक किस माध्यम में होती है?", "options": ["हवा", "जल", "ठोस (स्टील)", "निर्वात"], "correct": 2, "year": "RRB Group D PYQ"},
+        {"q": "विद्युत धारा (Electric Current) मापने के लिए किस यंत्र का उपयोग किया जाता है?", "options": ["एमीटर (Ammeter)", "वोल्टमीटर", "गैल्वेनोमीटर", "ओह्ममीटर"], "correct": 0, "year": "RRB ALP PYQ"},
+        {"q": "भोपाल गैस त्रासदी (1984) में किस जहरीली गैस का रिसाव हुआ था?", "options": ["मिथाइल आइसोसाइनेट", "क्लोरीन", "सल्फर डाइऑक्साइड", "कार्बन मोनोऑक्साइड"], "correct": 0, "year": "RRB Group D PYQ"}
+    ],
+    "vyapam": [
+        {"q": "मध्य प्रदेश में 'तानसेन समारोह' किस शहर में आयोजित किया जाता है?", "options": ["भोपाल", "उज्जैन", "ग्वालियर", "इंदौर"], "correct": 2, "year": "MP Patwari PYQ"},
+        {"q": "भारत में पंचायती राज व्यवस्था लागू करने वाला पहला राज्य कौन सा था?", "options": ["मध्य प्रदेश", "राजस्थान (नागौर)", "उत्तर प्रदेश", "आंध्र प्रदेश"], "correct": 1, "year": "MP Patwari PYQ"},
+        {"q": "मध्य प्रदेश का सबसे बड़ा राष्ट्रीय उद्यान कौन सा है?", "options": ["कान्हा किसली", "बांधवगढ़", "पेंच", "माधव राष्ट्रीय उद्यान"], "correct": 0, "year": "MP Forest Guard PYQ"},
+        {"q": "नर्मदा नदी का उद्गम स्थल मध्य प्रदेश के किस जिले में है?", "options": ["जबलपुर", "अनूपपुर (अमरकंटक)", "होशंगाबाद", "मंडला"], "correct": 1, "year": "MP Jail Prahari PYQ"}
+    ],
+    "police": [
+        {"q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में स्थित है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0, "year": "Police Constable PYQ"},
+        {"q": "वायुमंडल की सबसे निचली परत को क्या कहा जाता है?", "options": ["समताप मंडल", "क्षोभमंडल (Troposphere)", "मध्यमंडल", "आयनमंडल"], "correct": 1, "year": "Police SI PYQ"},
+        {"q": "मध्य प्रदेश पुलिस का ध्येय वाक्य (Motto) क्या है?", "options": ["सत्यमेव जयते", "देशभक्ति-जनसेवा", "वीरता और निष्ठा", "सेवा सुरक्षा शांति"], "correct": 1, "year": "MP Police PYQ"},
+        {"q": "सूर्य के प्रकाश से शरीर को कौन सा विटामिन प्राप्त होता है?", "options": ["विटामिन A", "विटामिन B", "विटामिन C", "विटामिन D"], "correct": 3, "year": "Police Constable PYQ"}
+    ],
+    "bank": [
+        {"q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0, "year": "IBPS PO PYQ"},
+        {"q": "भारत में 'रेपो रेट' (Repo Rate) का निर्धारण किसके द्वारा किया जाता है?", "options": ["वित्त मंत्रालय", "RBI", "SEBI", "SBI"], "correct": 1, "year": "SBI Clerk PYQ"},
+        {"q": "बैंकिंग क्षेत्र में 'KYC' का पूर्ण रूप क्या होता है?", "options": ["Know Your Customer", "Know Your Cash", "Keep Your Card", "Key Yield Credit"], "correct": 0, "year": "Bank PO PYQ"},
+        {"q": "चेक की वैधता (Validity) जारी होने की तारीख से कितने समय तक होती है?", "options": ["1 महीना", "3 महीने", "6 महीने", "1 वर्ष"], "correct": 1, "year": "IBPS Clerk PYQ"}
+    ],
+    "upsc": [
+        {"q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "बदरुद्दीन तैयबजी"], "correct": 0, "year": "UPSC Prelims PYQ"},
+        {"q": "प्रकाश वर्ष (Light Year) निम्नलिखित में से किसका मात्रक है?", "options": ["समय", "खगोलीय दूरी", "प्रकाश की गति", "तीव्रता"], "correct": 1, "year": "UPSC Civil Services PYQ"},
+        {"q": "भीमबेटका की गुफाएं किसके लिए प्रसिद्ध हैं?", "options": ["प्रागैतिहासिक शैलचित्र", "बौद्ध स्तूप", "खनिज", "मंदिर"], "correct": 0, "year": "MPPSC PYQ"},
+        {"q": "भारत में 'आर्थिक सर्वेक्षण' किसके द्वारा प्रकाशित किया जाता है?", "options": ["नीति आयोग", "वित्त मंत्रालय", "सांख्यिकी संस्थान", "RBI"], "correct": 1, "year": "UPSC Prelims PYQ"}
+    ]
+}
+
+def translate_to_hindi(text):
+    try:
+        url = f"https://api.mymemory.translated.net/get?q={requests.utils.quote(text)}&langpair=en|hi"
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            res = r.json()
+            trans = res.get("responseData", {}).get("translatedText")
+            if trans and trans != text:
+                return html.unescape(trans)
+    except:
+        pass
+    return text
+
+def fetch_quiz_question(category, lang="hi"):
+    if lang == "hi":
+        hindi_list = HINDI_PYQ_BANK.get(category, HINDI_PYQ_BANK["ssc"])
+        if random.random() < 0.6:
+            return random.choice(hindi_list)
+
     cat_info = CATEGORY_MAP.get(category, CATEGORY_MAP["ssc"])
     api_url = f"https://opentdb.com/api.php?amount=1&category={cat_info['cat_id']}&type=multiple"
-    
     try:
-        res = requests.get(api_url, timeout=5)
+        res = requests.get(api_url, timeout=4)
         if res.status_code == 200:
             data = res.json()
             if data.get("response_code") == 0 and data.get("results"):
                 item = data["results"][0]
-                q_text = html.unescape(item["question"])
-                correct_ans = html.unescape(item["correct_answer"])
-                wrong_ans = [html.unescape(a) for a in item["incorrect_answers"]]
-                
-                options = wrong_ans + [correct_ans]
+                raw_q = html.unescape(item["question"])
+                raw_correct = html.unescape(item["correct_answer"])
+                raw_wrongs = [html.unescape(a) for a in item["incorrect_answers"]]
+
+                if lang == "hi":
+                    final_q = translate_to_hindi(raw_q)
+                    final_correct = translate_to_hindi(raw_correct)
+                    final_wrongs = [translate_to_hindi(w) for w in raw_wrongs]
+                    title = cat_info["title_hi"]
+                else:
+                    final_q = raw_q
+                    final_correct = raw_correct
+                    final_wrongs = raw_wrongs
+                    title = cat_info["title_en"]
+
+                options = final_wrongs + [final_correct]
                 random.shuffle(options)
-                correct_index = options.index(correct_ans)
-                
+                correct_idx = options.index(final_correct)
+
                 return {
-                    "q": q_text,
+                    "q": final_q,
                     "options": options,
-                    "correct": correct_index,
-                    "year": f"{cat_info['title']} - Live Question"
+                    "correct": correct_idx,
+                    "year": f"{title} - Live Quiz"
                 }
     except Exception as e:
-        print(f"Quiz API fetch fallback: {e}")
-        
-    return FALLBACK_QUESTIONS.get(category, FALLBACK_QUESTIONS["ssc"])
+        print(f"API Fetch Error: {e}")
+
+    fallback_list = HINDI_PYQ_BANK.get(category, HINDI_PYQ_BANK["ssc"])
+    return random.choice(fallback_list)
+
+def send_language_selection_menu(chat_id):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    b1 = types.InlineKeyboardButton("🇮🇳 हिंदी (Hindi Medium)", callback_data="qlang_hi")
+    b2 = types.InlineKeyboardButton("🇬🇧 English Medium", callback_data="qlang_en")
+    markup.add(b1, b2)
+    bot.send_message(
+        chat_id,
+        "🌐 **क्विज़ के लिए अपनी भाषा चुनें / Select Quiz Language:**\n\n"
+        "👉 आप किस भाषा में परीक्षा देना चाहते हैं?",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("qlang_"))
+def handle_language_choice(call):
+    chat_id = call.message.chat.id
+    chosen_lang = call.data.split("_")[1]
+    user_lang_pref[chat_id] = chosen_lang
+    bot.answer_callback_query(call.id, f"भाषा सेट: {'हिंदी' if chosen_lang == 'hi' else 'English'}")
+    bot.delete_message(chat_id, call.message.message_id)
+    send_exam_category_menu(chat_id)
 
 def send_exam_category_menu(chat_id):
+    lang = user_lang_pref.get(chat_id, "hi")
     markup = types.InlineKeyboardMarkup(row_width=2)
-    b1 = types.InlineKeyboardButton("🏛️ SSC (CGL, CHSL, GD)", callback_data="qcat_ssc")
-    b2 = types.InlineKeyboardButton("🚆 Railway (NTPC, Group D)", callback_data="qcat_railway")
-    b3 = types.InlineKeyboardButton("🌾 MP पटवारी / व्यापमं", callback_data="qcat_vyapam")
-    b4 = types.InlineKeyboardButton("👮 पुलिस (Constable / SI)", callback_data="qcat_police")
-    b5 = types.InlineKeyboardButton("🏦 बैंकिंग (IBPS, SBI)", callback_data="qcat_bank")
-    b6 = types.InlineKeyboardButton("🇮🇳 UPSC / State PSC", callback_data="qcat_upsc")
-    b7 = types.InlineKeyboardButton("🏁 मुख्य मेनू पर जाएँ", callback_data="qcat_main")
+    if lang == "hi":
+        b1 = types.InlineKeyboardButton("🏛️ SSC (CGL, CHSL, GD)", callback_data="qcat_ssc")
+        b2 = types.InlineKeyboardButton("🚆 रेलवे (NTPC, Group D)", callback_data="qcat_railway")
+        b3 = types.InlineKeyboardButton("🌾 MP पटवारी / व्यापमं", callback_data="qcat_vyapam")
+        b4 = types.InlineKeyboardButton("👮 पुलिस (कांस्टेबल / SI)", callback_data="qcat_police")
+        b5 = types.InlineKeyboardButton("🏦 बैंकिंग (IBPS, SBI)", callback_data="qcat_bank")
+        b6 = types.InlineKeyboardButton("🇮🇳 UPSC / State PSC", callback_data="qcat_upsc")
+        b7 = types.InlineKeyboardButton("🌐 भाषा बदलें (Change Lang)", callback_data="qcat_lang")
+        b8 = types.InlineKeyboardButton("🏁 मुख्य मेनू", callback_data="qcat_main")
+    else:
+        b1 = types.InlineKeyboardButton("🏛️ SSC Exams", callback_data="qcat_ssc")
+        b2 = types.InlineKeyboardButton("🚆 Railway Exams", callback_data="qcat_railway")
+        b3 = types.InlineKeyboardButton("🌾 MP Vyapam / Patwari", callback_data="qcat_vyapam")
+        b4 = types.InlineKeyboardButton("👮 Police Exams", callback_data="qcat_police")
+        b5 = types.InlineKeyboardButton("🏦 Banking Exams", callback_data="qcat_bank")
+        b6 = types.InlineKeyboardButton("🇮🇳 UPSC / PSC", callback_data="qcat_upsc")
+        b7 = types.InlineKeyboardButton("🌐 Change Language", callback_data="qcat_lang")
+        b8 = types.InlineKeyboardButton("🏁 Main Menu", callback_data="qcat_main")
+
     markup.add(b1, b2, b3, b4, b5, b6)
-    markup.add(b7)
-    bot.send_message(chat_id, "📚 **किस सरकारी परीक्षा का टेस्ट देना चाहते हैं?**\n(हज़ारों अनलिमिटेड सवाल उपलब्ध हैं)\n\nनीचे से अपनी परीक्षा चुनें 👇", reply_markup=markup, parse_mode="Markdown")
+    markup.add(b7, b8)
+    
+    prompt = "📚 **किस सरकारी परीक्षा का टेस्ट देना चाहते हैं?**\n(हज़ारों अनलिमिटेड सवाल उपलब्ध हैं)\n\nनीचे से अपनी परीक्षा चुनें 👇" if lang == "hi" else "📚 **Select your exam category for unlimited practice:**"
+    bot.send_message(chat_id, prompt, reply_markup=markup, parse_mode="Markdown")
 
 def send_category_question(chat_id, category):
-    q_data = fetch_live_quiz_question(category)
+    lang = user_lang_pref.get(chat_id, "hi")
+    q_data = fetch_quiz_question(category, lang=lang)
     active_quiz_cache[chat_id] = q_data
 
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -456,6 +550,10 @@ def handle_quiz_category(call):
         bot.answer_callback_query(call.id)
         bot.delete_message(chat_id, call.message.message_id)
         send_task_completion_menu(chat_id, "मुख्य मेनू से विकल्प चुनें 👇")
+    elif cat == "lang":
+        bot.answer_callback_query(call.id)
+        bot.delete_message(chat_id, call.message.message_id)
+        send_language_selection_menu(chat_id)
     else:
         bot.answer_callback_query(call.id, f"{cat.upper()} टेस्ट शुरू!")
         bot.delete_message(chat_id, call.message.message_id)
@@ -464,11 +562,12 @@ def handle_quiz_category(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("qz_"))
 def process_quiz_answer(call):
     chat_id = call.message.chat.id
+    lang = user_lang_pref.get(chat_id, "hi")
     parts = call.data.split("_")
     
     if parts[1] == "next":
         cat = parts[2]
-        bot.answer_callback_query(call.id, "अगला नया प्रश्न लोड हो रहा है...")
+        bot.answer_callback_query(call.id, "अगला प्रश्न लोड हो रहा है..." if lang == "hi" else "Loading next question...")
         send_category_question(chat_id, cat)
         return
     elif parts[1] == "change":
@@ -492,16 +591,20 @@ def process_quiz_answer(call):
         return
 
     if opt_idx == q_data["correct"]:
-        result_title = "🎉 **बिल्कुल सही उत्तर! शाबाश!**"
+        result_title = "🎉 **बिल्कुल सही उत्तर! शाबाश!**" if lang == "hi" else "🎉 **Correct Answer! Well done!**"
     else:
         correct_ans = q_data["options"][q_data["correct"]]
-        result_title = f"❌ **गलत उत्तर!**\n\n✅ **सही उत्तर है:** `{correct_ans}`"
+        result_title = f"❌ **गलत उत्तर!**\n\n✅ **सही उत्तर है:** `{correct_ans}`" if lang == "hi" else f"❌ **Wrong Answer!**\n\n✅ **Correct Answer:** `{correct_ans}`"
 
     markup = types.InlineKeyboardMarkup(row_width=1)
+    btn_next = "➡️ अगला नया प्रश्न (Next Question)" if lang == "hi" else "➡️ Next Question"
+    btn_change = "🔄 अन्य परीक्षा बदलें (Change Exam)" if lang == "hi" else "🔄 Change Exam"
+    btn_finish = "🏁 मुख्य मेनू पर जाएँ (Finish)" if lang == "hi" else "🏁 Main Menu"
+    
     markup.add(
-        types.InlineKeyboardButton("➡️ अगला नया प्रश्न (Next Question)", callback_data=f"qz_next_{cat}"),
-        types.InlineKeyboardButton("🔄 अन्य परीक्षा बदलें (Change Exam)", callback_data="qz_change"),
-        types.InlineKeyboardButton("🏁 मुख्य मेनू पर जाएँ", callback_data="qz_finish")
+        types.InlineKeyboardButton(btn_next, callback_data=f"qz_next_{cat}"),
+        types.InlineKeyboardButton(btn_change, callback_data="qz_change"),
+        types.InlineKeyboardButton(btn_finish, callback_data="qz_finish")
     )
 
     bot.edit_message_text(
@@ -545,7 +648,6 @@ def generate_full_resume_pdf(data):
     table_cell = ParagraphStyle('TCell', fontName='Helvetica', fontSize=8, leading=11, textColor=colors.HexColor("#1E293B"))
     table_head = ParagraphStyle('THead', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=colors.white)
 
-    # बायां कॉलम (Dark Navy Sidebar)
     left_elements = []
     if 'photo' in data:
         try:
@@ -580,7 +682,6 @@ def generate_full_resume_pdf(data):
     left_elements.append(Paragraph(f"<b>Languages:</b> {data.get('lang', 'Hindi, English')}", left_body))
     left_elements.append(Paragraph("<b>Nationality:</b> Indian", left_body))
 
-    # दायां कॉलम (Main Content)
     right_elements = []
     cand_name = data.get('name', 'CANDIDATE NAME').upper()
     right_elements.append(Paragraph(cand_name, name_style))
@@ -694,7 +795,7 @@ def handle_text(message):
     mode = session.get('mode')
     step = session.get('step')
 
-    # लाइव सदस्यता जाँच (चैनल छोड़ा तो तुरंत ब्लॉक)
+    # लाइव सदस्यता जाँच
     if not is_user_subscribed(chat_id, user_id):
         send_join_channel_prompt(chat_id)
         return
@@ -721,7 +822,7 @@ def handle_text(message):
 
     elif txt == "🧠 सरकारी एग्जाम डेली क्विज़":
         session.clear()
-        send_exam_category_menu(chat_id)
+        send_language_selection_menu(chat_id)
         return
 
     elif txt in ["📄 प्रोफेशनल रिज्यूम बनाएँ", "📄 प्रोफेशनल रिज्यूम / CV बनाएँ"]:
