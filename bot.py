@@ -4,11 +4,16 @@ import time
 import threading
 import telebot
 from telebot import types
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, request
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # ==========================================
 # 1. कॉन्फ़िगरेशन
@@ -32,7 +37,7 @@ def get_message():
 
 @server.route('/')
 def webhook_status():
-    return "✅ All-India Sarkari Job Engine Active 24/7!", 200
+    return "✅ Student Super-Bot Engine Active 24/7!", 200
 
 # ==========================================
 # 3. ऑल-इंडिया डायरेक्ट फॉर्म + हिंदी न्यूज़ इंजन
@@ -40,7 +45,6 @@ def webhook_status():
 sent_jobs = set()
 
 def fetch_sarkari_result_direct():
-    """सीधे SarkariResult से डायरेक्ट ऑनलाइन फॉर्म लिंक्स"""
     url = "https://www.sarkariresult.com/latestjob/"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     try:
@@ -50,14 +54,13 @@ def fetch_sarkari_result_direct():
             post_div = soup.find('div', id='post')
             if post_div:
                 links = post_div.find_all('a')
-                for a in links[:3]:  # ताज़ा 3 सीधे फॉर्म
+                for a in links[:3]:
                     title = a.get_text().strip()
                     link = a.get('href')
                     if link and title and link not in sent_jobs:
                         sent_jobs.add(link)
                         if not link.startswith('http'):
                             link = f"https://www.sarkariresult.com{link}"
-                        
                         msg = (
                             f"📌 **सीधा ऑनलाइन फॉर्म (Direct Application)**\n\n"
                             f"🏢 **भर्ती:** {title}\n\n"
@@ -66,85 +69,73 @@ def fetch_sarkari_result_direct():
                             f"🎯 ताज़ा सरकारी फॉर्म के लिए जुड़े रहें!"
                         )
                         bot.send_message(CHANNEL_ID, msg)
-                        time.sleep(3)
+                        time.sleep(2)
     except Exception as e:
         print(f"Direct Scraping Error: {e}")
 
 def fetch_all_india_hindi_news():
-    """ऑल-इंडिया प्रमुख हिंदी न्यूज़ चैनल्स (दैनिक भास्कर, अमर उजाला, आज तक, NBT, जागरण)"""
     hindi_channels_rss = [
-        # ऑल-इंडिया केंद्र व राज्य भर्तियां (दैनिक भास्कर/अमर उजाला/जागरण जोश नेटवर्क)
         "https://news.google.com/rss/search?q=सरकारी+नौकरी+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi",
-        # SSC, रेलवे, बैंक, UPSC स्पेशल
         "https://news.google.com/rss/search?q=SSC+रेलवे+UPSC+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi",
-        # पुलिस, शिक्षक, पटवारी, राज्य स्तरीय परीक्षाएं
-        "https://news.google.com/rss/search?q=पुलिस+कांस्टेबल+शिक्षक+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi",
-        # एडमिट कार्ड और आंसर-की सूचना
-        "https://news.google.com/rss/search?q=एडमिट+कार्ड+रिजल्ट+घोषित+when:1d&hl=hi&gl=IN&ceid=IN:hi"
+        "https://news.google.com/rss/search?q=पुलिस+कांस्टेबल+शिक्षक+भर्ती+when:1d&hl=hi&gl=IN&ceid=IN:hi"
     ]
-    
     for url in hindi_channels_rss:
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:2]:
                 if entry.link not in sent_jobs:
                     sent_jobs.add(entry.link)
-                    
                     msg = (
                         f"📢 **सरकारी भर्ती सूचना (न्यूज़ नेटवर्क)** 🇮🇳\n\n"
                         f"📰 **अपडेट:** {entry.title}\n\n"
-                        f"👉 **पूरी खबर व आधिकारिक जानकारी:**\n{entry.link}\n\n"
+                        f"👉 **पूरी खबर व जानकारी:**\n{entry.link}\n\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"⚡ सबसे तेज़ और सही अपडेट्स के लिए शेयर करें!"
                     )
                     bot.send_message(CHANNEL_ID, msg)
-                    time.sleep(3)
+                    time.sleep(2)
         except Exception as e:
             print(f"Hindi News Error: {e}")
 
 def job_alert_scheduler():
     time.sleep(15)
-    # बूट होते ही तुरंत पहली बार अपडेट चेक
     fetch_sarkari_result_direct()
     fetch_all_india_hindi_news()
-    
-    # इसके बाद हर 10 मिनट (600 सेकंड) में चेक करेगा
     while True:
-        time.sleep(600)
+        time.sleep(600)  # हर 10 मिनट में ऑटो-चेक
         fetch_sarkari_result_direct()
         fetch_all_india_hindi_news()
 
 # ==========================================
-# 4. इमेज और सिग्नेचर रिसाइज़र (सटीक सरकारी मानक)
+# 4. इन-मेमोरी स्टेट और मुख्य मेनू
 # ==========================================
-user_data = {}
+user_sessions = {}
+
+def get_main_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    b1 = types.KeyboardButton("📐 फोटो / सिग्नेचर रिसाइज़र")
+    b2 = types.KeyboardButton("🏷️ फोटो पर नाम व तारीख प्रिंट करें")
+    b3 = types.KeyboardButton("📄 प्रोफेशनल रिज्यूम बनाएँ")
+    b4 = types.KeyboardButton("🧠 सरकारी एग्जाम डेली क्विज़")
+    markup.add(b1, b2, b3, b4)
+    return markup
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     text = (
-        "👋 **सरकारी फॉर्म इमेज/सिग्नेचर रिसाइज़र**\n\n"
-        "अपनी फोटो या सिग्नेचर भेजें। बॉट उसे SSC, UPSC, MP Police आदि के लिए सही KB में कन्वर्ट करेगा।"
+        "👋 **ऑल-इन-वन स्टूडेंट सुपर-टूल में आपका स्वागत है!** 🇮🇳\n\n"
+        "यहाँ आपको सरकारी फॉर्म और तैयारी की सभी सुविधाएँ एक जगह मिलती हैं:\n"
+        "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
+        "• 🏷️ SSC/Vyapam मानकों अनुसार फोटो पर नाम व तारीख लिखें\n"
+        "• 📄 फोटो वाला आकर्षक प्रोफेशनल रिज्यूम PDF बनाएँ\n"
+        "• 🧠 GK/GS और करेंट अफेयर्स क्विज़ हल करें\n\n"
+        "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
-    bot.reply_to(message, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_menu())
 
-@bot.message_handler(content_types=['photo', 'document'])
-def handle_docs_photo(message):
-    try:
-        file_id = message.photo[-1].file_id if message.content_type == 'photo' else message.document.file_id
-        file_info = bot.get_file(file_id)
-        user_data[message.chat.id] = bot.download_file(file_info.file_path)
-
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        btn1 = types.InlineKeyboardButton("📷 पासपोर्ट फोटो (20 - 50 KB)", callback_data="photo_50")
-        btn2 = types.InlineKeyboardButton("✍️ सिग्नेचर (10 - 20 KB)", callback_data="sign_20")
-        btn3 = types.InlineKeyboardButton("📄 डॉक्यूमेंट (50 - 100 KB)", callback_data="doc_100")
-        btn4 = types.InlineKeyboardButton("📁 हैवी डॉक्यूमेंट (100 - 200 KB)", callback_data="doc_200")
-        markup.add(btn1, btn2, btn3, btn4)
-
-        bot.reply_to(message, "⚙️ **किस साइज़ में कन्वर्ट करना है?**", reply_markup=markup, parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ एरर: {e}")
-
+# ==========================================
+# 5. फीचर 1: इमेज और सिग्नेचर रिसाइज़र
+# ==========================================
 def resize_to_target_kb(image, max_kb, target_width):
     w_percent = (target_width / float(image.size[0]))
     h_size = int((float(image.size[1]) * float(w_percent)))
@@ -164,27 +155,27 @@ def resize_to_target_kb(image, max_kb, target_width):
     img_resized.save(buf, format="JPEG", quality=65, optimize=True)
     return buf.getvalue(), len(buf.getvalue()) / 1024
 
-@bot.callback_query_handler(func=lambda call: True)
-def process_resize(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith("res_"))
+def process_resize_callback(call):
     chat_id = call.message.chat.id
-    if chat_id not in user_data:
+    session = user_sessions.get(chat_id, {})
+    if 'temp_photo' not in session:
         bot.answer_callback_query(call.id, "कृपया फोटो दोबारा भेजें।")
         return
 
     bot.answer_callback_query(call.id, "प्रोसेसिंग...")
-    msg = bot.send_message(chat_id, "⏳ सटीक KB में कन्वर्ट किया जा रहा है...")
+    msg = bot.send_message(chat_id, "⏳ सटीक KB में तैयार किया जा रहा है...")
 
     try:
-        img_bytes = user_data[chat_id]
-        image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-
-        if call.data == "sign_20":
+        image = Image.open(io.BytesIO(session['temp_photo'])).convert("RGB")
+        target = call.data
+        if target == "res_sign":
             final_bytes, size_kb = resize_to_target_kb(image, max_kb=19, target_width=300)
             tag = "सिग्नेचर (10-20 KB)"
-        elif call.data == "photo_50":
+        elif target == "res_photo":
             final_bytes, size_kb = resize_to_target_kb(image, max_kb=48, target_width=450)
             tag = "पासपोर्ट फोटो (20-50 KB)"
-        elif call.data == "doc_100":
+        elif target == "res_doc":
             final_bytes, size_kb = resize_to_target_kb(image, max_kb=95, target_width=800)
             tag = "डॉक्यूमेंट (50-100 KB)"
         else:
@@ -192,16 +183,289 @@ def process_resize(call):
             tag = "डॉक्यूमेंट (100-200 KB)"
 
         out_file = io.BytesIO(final_bytes)
-        out_file.name = "Sarkari_Job_Resized.jpg"
-
-        caption = f"✅ **{tag} तैयार है!**\n📏 सटीक साइज़: `{size_kb:.1f} KB`"
-        bot.send_document(chat_id, out_file, caption=caption, parse_mode="Markdown")
+        out_file.name = "Sarkari_Ready.jpg"
+        bot.send_document(chat_id, out_file, caption=f"✅ **{tag} तैयार है!**\n📏 साइज़: `{size_kb:.1f} KB`", parse_mode="Markdown")
         bot.delete_message(chat_id, msg.message_id)
     except Exception as e:
-        bot.edit_message_text(f"❌ रिसाइज़ में त्रुटि: {e}", chat_id, msg.message_id)
+        bot.edit_message_text(f"❌ एरर: {e}", chat_id, msg.message_id)
 
 # ==========================================
-# 5. मुख्य एग्जीक्यूशन
+# 6. फीचर 2: फोटो पर नाम व तारीख प्रिंटर
+# ==========================================
+def apply_name_and_date(image_bytes, name, date_text):
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    width, height = image.size
+    
+    strip_height = int(height * 0.20)
+    new_image = Image.new("RGB", (width, height + strip_height), "white")
+    new_image.paste(image, (0, 0))
+    
+    draw = ImageDraw.Draw(new_image)
+    try:
+        font_size = int(strip_height * 0.35)
+        font = ImageFont.load_default()
+    except:
+        font = None
+    
+    draw.text((int(width * 0.1), height + int(strip_height * 0.15)), f"NAME: {name.upper()}", fill="black", font=font)
+    draw.text((int(width * 0.1), height + int(strip_height * 0.55)), f"DATE: {date_text}", fill="black", font=font)
+    
+    buf = io.BytesIO()
+    new_image.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
+
+# ==========================================
+# 7. फीचर 3: डेली सरकारी एग्जाम क्विज़
+# ==========================================
+quiz_bank = [
+    {
+        "q": "भारत में 'राष्ट्रीय युवा दिवस' किस महापुरुष की स्मृति में मनाया जाता है?",
+        "options": ["स्वामी विवेकानंद", "भगत सिंह", "सुभाष चंद्र बोस", "महात्मा गांधी"],
+        "correct": 0
+    },
+    {
+        "q": "भारतीय संविधान के किस अनुच्छेद में 'मौलिक अधिकारों' का वर्णन है?",
+        "options": ["अनुच्छेद 5 से 11", "अनुच्छेद 12 से 35", "अनुच्छेद 36 से 51", "अनुच्छेद 51A"],
+        "correct": 1
+    },
+    {
+        "q": "कंप्यूटर में CPU का पूरा नाम (Full Form) क्या होता है?",
+        "options": ["Central Processing Unit", "Central Program Utility", "Control Processing Unit", "Core Power Unit"],
+        "correct": 0
+    }
+]
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("quiz_"))
+def process_quiz_answer(call):
+    _, q_idx, opt_idx = call.data.split("_")
+    q_data = quiz_bank[int(q_idx)]
+    if int(opt_idx) == q_data["correct"]:
+        bot.answer_callback_query(call.id, "🎉 सही उत्तर! बहुत बढ़िया!", show_alert=True)
+    else:
+        correct_ans = q_data["options"][q_data["correct"]]
+        bot.answer_callback_query(call.id, f"❌ गलत उत्तर!\nसही उत्तर है: {correct_ans}", show_alert=True)
+
+# ==========================================
+# 8. फीचर 4: फोटो वाला प्रोफेशनल रिज्यूम बिल्डर
+# ==========================================
+def generate_resume_pdf(data):
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    story = []
+    styles = getSampleStyleSheet()
+
+    # कस्टम स्टाइल्स
+    name_style = ParagraphStyle('NameStyle', parent=styles['Normal'], fontSize=20, leading=24, fontName='Helvetica-Bold', textColor=colors.HexColor("#1A365D"))
+    contact_style = ParagraphStyle('ContactStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#4A5568"))
+    heading_style = ParagraphStyle('HeadingStyle', parent=styles['Normal'], fontSize=13, leading=16, fontName='Helvetica-Bold', textColor=colors.HexColor("#2B6CB0"))
+    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#2D3748"))
+
+    # हेडर: फोटो + नाम व संपर्क
+    left_info = [
+        Paragraph(data.get('name', 'N/A'), name_style),
+        Spacer(1, 4),
+        Paragraph(f"📞 {data.get('phone', 'N/A')}  |  ✉️ {data.get('email', 'N/A')}", contact_style),
+        Paragraph(f"📍 {data.get('address', 'India')}", contact_style)
+    ]
+    
+    photo_cell = []
+    if 'photo' in data:
+        p_stream = io.BytesIO(data['photo'])
+        photo_img = RLImage(p_stream, width=80, height=100)
+        photo_cell.append(photo_img)
+    else:
+        photo_cell.append(Paragraph("", body_style))
+
+    header_table = Table([[left_info, photo_cell]], colWidths=[440, 100])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ALIGN', (1,0), (1,0), 'RIGHT')
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 15))
+
+    # कैरियर ऑब्जेक्टिव
+    story.append(Paragraph("कैरियर उद्देश्य (CAREER OBJECTIVE)", heading_style))
+    story.append(Paragraph("एक अनुशासित और समर्पित वातावरण में कार्य करते हुए संगठन के लक्ष्यों में योगदान देना एवं निरंतर नई तकनीक व ज्ञान अर्जित करना।", body_style))
+    story.append(Spacer(1, 12))
+
+    # शैक्षणिक योग्यता
+    story.append(Paragraph("शैक्षणिक योग्यता (EDUCATION)", heading_style))
+    edu_data = [
+        [Paragraph("<b>कोर्स / डिग्री</b>", body_style), Paragraph("<b>बोर्ड / यूनिवर्सिटी</b>", body_style), Paragraph("<b>प्रतिशत / वर्ष</b>", body_style)],
+        [Paragraph("10th Standard", body_style), Paragraph(data.get('edu_10th_board', 'State Board'), body_style), Paragraph(data.get('edu_10th_marks', '-'), body_style)],
+        [Paragraph("12th Standard", body_style), Paragraph(data.get('edu_12th_board', 'State Board'), body_style), Paragraph(data.get('edu_12th_marks', '-'), body_style)],
+        [Paragraph("Graduation / Diploma", body_style), Paragraph(data.get('edu_grad_board', 'University'), body_style), Paragraph(data.get('edu_grad_marks', '-'), body_style)]
+    ]
+    t_edu = Table(edu_data, colWidths=[180, 200, 160])
+    t_edu.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#E2E8F0")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('TOPPADDING', (0,0), (-1,-1), 5)
+    ]))
+    story.append(t_edu)
+    story.append(Spacer(1, 12))
+
+    # आधुनिक और इन-डिमांड स्किल्स
+    story.append(Paragraph("कौशल व क्षमताएं (KEY SKILLS)", heading_style))
+    skills_text = data.get('skills', 'Computer Basic, MS Office, Typing (Hindi & English), Data Management')
+    story.append(Paragraph(f"• {skills_text}", body_style))
+    story.append(Spacer(1, 12))
+
+    # व्यक्तिगत विवरण
+    story.append(Paragraph("व्यक्तिगत विवरण (PERSONAL DETAILS)", heading_style))
+    p_info = (
+        f"<b>पिता का नाम:</b> {data.get('father', 'N/A')}<br/>"
+        f"<b>भाषा ज्ञान:</b> हिंदी, अंग्रेज़ी<br/>"
+        f"<b>राष्ट्रीयता:</b> भारतीय"
+    )
+    story.append(Paragraph(p_info, body_style))
+
+    doc.build(story)
+    return pdf_buffer.getvalue()
+
+# ==========================================
+# 9. टेक्स्ट व मैसेज हैंडलर
+# ==========================================
+@bot.message_handler(content_types=['text'])
+def handle_text(message):
+    chat_id = message.chat.id
+    txt = message.text.strip()
+    session = user_sessions.setdefault(chat_id, {})
+
+    if txt == "📐 फोटो / सिग्नेचर रिसाइज़र":
+        session['mode'] = 'resizer'
+        bot.send_message(chat_id, "📷 कृपया वह **फोटो या सिग्नेचर** भेजें जिसे रिसाइज़ करना है:")
+        return
+
+    elif txt == "🏷️ फोटो पर नाम व तारीख प्रिंट करें":
+        session['mode'] = 'name_date'
+        session['step'] = 'wait_photo'
+        bot.send_message(chat_id, "📷 कृपया अपनी **पासपोर्ट फोटो** भेजें:")
+        return
+
+    elif txt == "🧠 सरकारी एग्जाम डेली क्विज़":
+        q = quiz_bank[0]
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for i, opt in enumerate(q["options"]):
+            markup.add(types.InlineKeyboardButton(opt, callback_data=f"quiz_0_{i}"))
+        bot.send_message(chat_id, f"📝 **डेली टेस्ट क्विज़:**\n\n{q['q']}", reply_markup=markup, parse_mode="Markdown")
+        return
+
+    elif txt == "📄 प्रोफेशनल रिज्यूम बनाएँ":
+        session['mode'] = 'resume'
+        session['step'] = 'res_name'
+        session['resume_data'] = {}
+        bot.send_message(chat_id, "💼 **रिज्यूम मेकर शुरू!**\n\nअपना **पूरा नाम (Full Name)** लिखकर भेजें:")
+        return
+
+    # बातचीत आधारित इनपुट्स (Step-by-Step Inputs)
+    mode = session.get('mode')
+    step = session.get('step')
+
+    if mode == 'name_date':
+        if step == 'wait_name':
+            session['nd_name'] = txt
+            session['step'] = 'wait_date'
+            bot.send_message(chat_id, "📅 अब फोटो खींचने की तारीख भेजें (उदा: `10/09/2026`):", parse_mode="Markdown")
+        elif step == 'wait_date':
+            photo_bytes = session.get('nd_photo')
+            if photo_bytes:
+                processed = apply_name_and_date(photo_bytes, session.get('nd_name', ''), txt)
+                out = io.BytesIO(processed)
+                out.name = "Photo_With_Name_Date.jpg"
+                bot.send_document(chat_id, out, caption="✅ **नाम व तारीख वाली फोटो तैयार है!**")
+                session.clear()
+            else:
+                bot.send_message(chat_id, "फोटो नहीं मिली, कृपया प्रक्रिया पुनः शुरू करें।")
+
+    elif mode == 'resume':
+        rdata = session.get('resume_data', {})
+        if step == 'res_name':
+            rdata['name'] = txt
+            session['step'] = 'res_phone'
+            bot.send_message(chat_id, "📱 अपना **मोबाइल नंबर** भेजें:")
+        elif step == 'res_phone':
+            rdata['phone'] = txt
+            session['step'] = 'res_email'
+            bot.send_message(chat_id, "✉️ अपनी **ईमेल आईडी (Email)** भेजें:")
+        elif step == 'res_email':
+            rdata['email'] = txt
+            session['step'] = 'res_father'
+            bot.send_message(chat_id, "👨‍👦 **पिता का नाम** भेजें:")
+        elif step == 'res_father':
+            rdata['father'] = txt
+            session['step'] = 'res_10th'
+            bot.send_message(chat_id, "📚 **10वीं का विवरण** भेजें (बोर्ड और प्रतिशत, उदा: `MP Board, 78%`):")
+        elif step == 'res_10th':
+            rdata['edu_10th_board'] = txt
+            rdata['edu_10th_marks'] = "Passed"
+            session['step'] = 'res_12th'
+            bot.send_message(chat_id, "🎓 **12वीं का विवरण** भेजें (बोर्ड और प्रतिशत, उदा: `CBSE, 75%`):")
+        elif step == 'res_12th':
+            rdata['edu_12th_board'] = txt
+            rdata['edu_12th_marks'] = "Passed"
+            session['step'] = 'res_grad'
+            bot.send_message(chat_id, "🏛️ **ग्रेजुएशन / डिप्लोमा** (या टाइप करें `N/A` अगर नहीं है):")
+        elif step == 'res_grad':
+            rdata['edu_grad_board'] = txt
+            rdata['edu_grad_marks'] = "Passed"
+            session['step'] = 'res_skills'
+            bot.send_message(chat_id, "⚡ अपनी **स्किल्स** भेजें (उदा: `MS Office, Hindi Typing 35 WPM, GST/Tally, Internet`):")
+        elif step == 'res_skills':
+            rdata['skills'] = txt
+            session['step'] = 'res_photo'
+            bot.send_message(chat_id, "📷 अंतिम चरण: रिज्यूम पर लगाने के लिए अपनी **पासपोर्ट फोटो** भेजें:")
+
+# ==========================================
+# 10. फोटो व डॉक्यूमेंट हैंडलर
+# ==========================================
+@bot.message_handler(content_types=['photo', 'document'])
+def handle_photos_and_docs(message):
+    chat_id = message.chat.id
+    session = user_sessions.setdefault(chat_id, {})
+    mode = session.get('mode')
+    step = session.get('step')
+
+    file_id = message.photo[-1].file_id if message.content_type == 'photo' else message.document.file_id
+    file_info = bot.get_file(file_id)
+    downloaded = bot.download_file(file_info.file_path)
+
+    if mode == 'name_date' and step == 'wait_photo':
+        session['nd_photo'] = downloaded
+        session['step'] = 'wait_name'
+        bot.send_message(chat_id, "✍️ अपना **पूरा नाम** लिखें जो फोटो पर प्रिंट करना है:")
+
+    elif mode == 'resume' and step == 'res_photo':
+        rdata = session.get('resume_data', {})
+        rdata['photo'] = downloaded
+        msg = bot.send_message(chat_id, "⏳ **प्रोफेशनल PDF रिज्यूम तैयार किया जा रहा है...**")
+        
+        try:
+            pdf_bytes = generate_resume_pdf(rdata)
+            out_pdf = io.BytesIO(pdf_bytes)
+            out_pdf.name = f"{rdata.get('name', 'Student')}_Resume.pdf"
+            bot.send_document(chat_id, out_pdf, caption="🎉 **आपका प्रोफेशनल रिज्यूम PDF तैयार है!**")
+            bot.delete_message(chat_id, msg.message_id)
+            session.clear()
+        except Exception as e:
+            bot.edit_message_text(f"❌ रिज्यूम जनरेशन में त्रुटि: {e}", chat_id, msg.message_id)
+
+    else:
+        # डिफ़ॉल्ट: फोटो रिसाइज़र मोड
+        session['temp_photo'] = downloaded
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        b1 = types.InlineKeyboardButton("📷 पासपोर्ट फोटो (20-50 KB)", callback_data="res_photo")
+        b2 = types.InlineKeyboardButton("✍️ सिग्नेचर (10-20 KB)", callback_data="res_sign")
+        b3 = types.InlineKeyboardButton("📄 डॉक्यूमेंट (50-100 KB)", callback_data="res_doc")
+        b4 = types.InlineKeyboardButton("📁 हैवी डॉक्यूमेंट (100-200 KB)", callback_data="res_heavy")
+        markup.add(b1, b2, b3, b4)
+        bot.reply_to(message, "⚙️ **किस सरकारी मानक साइज़ में कन्वर्ट करना है?**", reply_markup=markup, parse_mode="Markdown")
+
+# ==========================================
+# 11. मुख्य रनर
 # ==========================================
 if __name__ == '__main__':
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
@@ -209,7 +473,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     time.sleep(1)
     bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-    print(f"🚀 Master Bot Engine active at {WEBHOOK_URL}")
+    print(f"🚀 All-in-One Super Bot Active at {WEBHOOK_URL}")
 
     port = int(os.environ.get("PORT", 8080))
     server.run(host="0.0.0.0", port=port)
