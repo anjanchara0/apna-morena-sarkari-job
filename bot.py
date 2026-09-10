@@ -21,7 +21,7 @@ from reportlab.lib import colors
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8526721171:AAHI55V6vyEaMvG0cBRXrjCnorPgDDC5eZg")
 CHANNEL_ID = "@apnamorenasarkarijob"
-WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com = telebot.types.Update.de_json(json_string)ri-job.onrender.com"
+WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://apna-morena-sarkari-job.onrender.com")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 server = Flask(__name__)
@@ -41,7 +41,44 @@ def webhook_status():
     return "✅ Master Student Platform Engine Live 24/7!", 200
 
 # ==========================================
-# 3. ऑल-इंडिया डायरेक्ट फॉर्म + हिंदी न्यूज़ इंजन
+# 3. फोर्स सब्सक्रिप्शन गेटवे (100% लाइव सर्वर चेक)
+# ==========================================
+def is_user_subscribed(chat_id, user_id):
+    try:
+        member = bot.get_chat_member(CHANNEL_ID, user_id)
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+        return False
+    except Exception as e:
+        print(f"Subscription Check Error: {e}")
+        return True
+
+def send_join_channel_prompt(chat_id):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    btn_join = types.InlineKeyboardButton("📢 चैनल जॉइन करें (यहाँ क्लिक करें)", url="https://t.me/apnamorenasarkarijob")
+    btn_verify = types.InlineKeyboardButton("✅ मैंने जॉइन कर लिया (Verify & Unlock)", callback_data="sub_verify_check")
+    markup.add(btn_join, btn_verify)
+    
+    text = (
+        "⚠️ **चैनल सदस्यता अनिवार्य है!**\n\n"
+        "सभी सरकारी टूल्स (फोटो रिसाइज़र, नाम-डेट स्टैम्प, CV बिल्डर, क्विज़) का निःशुल्क उपयोग करने के लिए हमारे टेलीग्राम चैनल से जुड़ना अनिवार्य है।\n\n"
+        "👉 नीचे बटन दबाकर चैनल जॉइन करें, फिर **'मैंने जॉइन कर लिया'** पर क्लिक करें।"
+    )
+    bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
+
+@bot.callback_query_handler(func=lambda call: call.data == "sub_verify_check")
+def handle_verify_subscription(call):
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+    if is_user_subscribed(chat_id, user_id):
+        bot.answer_callback_query(call.id, "🎉 वेरिफिकेशन सफल! सभी टूल्स अनलॉक हो गए हैं।", show_alert=True)
+        bot.delete_message(chat_id, call.message.message_id)
+        send_task_completion_menu(chat_id, "✅ **स्वागत है! सभी टूल्स अनलॉक हो चुके हैं।**\nनीचे से अपनी सेवा चुनें 👇")
+    else:
+        bot.answer_callback_query(call.id, "❌ आपने अभी तक चैनल जॉइन नहीं किया है! कृपया पहले जॉइन करें।", show_alert=True)
+
+# ==========================================
+# 4. ऑल-इंडिया डायरेक्ट फॉर्म + हिंदी न्यूज़ इंजन
 # ==========================================
 sent_jobs = set()
 
@@ -108,9 +145,19 @@ def job_alert_scheduler():
         fetch_all_india_hindi_news()
 
 # ==========================================
-# 4. इन-मेमोरी स्टेट, मेनू व कीबोर्ड्स
+# 5. इन-मेमोरी स्टेट, मेनू व नेविगेशन कीबोर्ड
 # ==========================================
 user_sessions = {}
+
+RESUME_STEPS = [
+    's_name', 's_phone', 's_email', 's_address', 's_father', 's_dob',
+    's_pg_course', 's_pg_board', 's_pg_score',
+    's_ug_course', 's_ug_board', 's_ug_score',
+    's_dip_course', 's_dip_board', 's_dip_score',
+    's_12th_board', 's_12th_score',
+    's_10th_board', 's_10th_score',
+    's_skills', 's_exp', 's_certs', 's_photo'
+]
 
 STEP_PROMPTS = {
     's_name': "👉 सबसे पहले अपना **पूरा नाम (Full Name)** लिखें:",
@@ -165,19 +212,23 @@ def send_task_completion_menu(chat_id, success_text="✅ काम पूरा 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     user_sessions.pop(message.chat.id, None)
+    if not is_user_subscribed(message.chat.id, message.from_user.id):
+        send_join_channel_prompt(message.chat.id)
+        return
+
     text = (
         "👋 **ऑल-इन-वन स्टूडेंट सुपर-टूल में आपका स्वागत है!** 🇮🇳\n\n"
         "यहाँ आपको सरकारी और प्राइवेट करियर की हर सुविधा मिलती है:\n"
         "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
-        "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें\n"
+        "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें (100% सरकारी मानक)\n"
         "• 📄 PG, UG, Diploma, Exp युक्त मॉडर्न 2-कॉलम CV PDF\n"
-        "• 🧠 एग्जाम वाइज कैटेगरी क्विज़ (SSC, Railway, Patwari, Police)\n\n"
+        "• 🧠 एग्जाम-वाइज़ सरकारी परीक्षा क्विज़ (SSC, Railway, Vyapam, Bank, Police, UPSC)\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_menu())
 
 # ==========================================
-# 5. फीचर 1: इमेज और सिग्नेचर रिसाइज़र
+# 6. फीचर 1: इमेज और सिग्नेचर रिसाइज़र
 # ==========================================
 def resize_to_target_kb(image, max_kb, target_width):
     w_percent = (target_width / float(image.size[0]))
@@ -235,7 +286,7 @@ def process_resize_callback(call):
         bot.edit_message_text(f"❌ एरर: {e}", chat_id, msg.message_id)
 
 # ==========================================
-# 6. फीचर 2: फोटो पर नाम व तारीख
+# 7. फीचर 2: फोटो पर नाम व तारीख (Never-Cut Sarkari Standard)
 # ==========================================
 def apply_name_and_date(image_bytes, name, date_text):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -313,131 +364,103 @@ def apply_name_and_date(image_bytes, name, date_text):
     return buf.getvalue()
 
 # ==========================================
-# 7. फीचर 3: एग्जाम-वाइज कैटेगरी क्विज़ इंजन
+# 8. फीचर 3: एग्जाम-वाइज़ ऑल-इंडिया क्विज़ इंजन
 # ==========================================
-CATEGORY_NAMES = {
-    "cat_ssc": "🏛️ SSC (CGL, CHSL, MTS, GD)",
-    "cat_rly": "🚆 Railway (NTPC, Group D)",
-    "cat_patwari": "🌾 पटवारी / व्यापमं (MPESB)",
-    "cat_police": "👮 पुलिस भर्ती (Constable / SI)",
-    "cat_bank": "🏦 Banking (IBPS, SBI PO / Clerk)",
-    "cat_upsc": "📚 UPSC / State PSC",
-    "cat_all": "🎲 ऑल-इंडिया मिक्स क्विज़"
+exam_quizzes = {
+    "ssc": [
+        {"q": "भारतीय संविधान की कौन सी अनुसूची 'भाषाओं' से संबंधित है?", "options": ["7वीं अनुसूची", "8वीं अनुसूची", "9वीं अनुसूची", "10वीं अनुसूची"], "correct": 1},
+        {"q": "पानीपत की पहली लड़ाई किस वर्ष लड़ी गई थी?", "options": ["1526", "1556", "1761", "1539"], "correct": 0}
+    ],
+    "railway": [
+        {"q": "मानव शरीर में रक्त का थक्का (Blood Clot) जमाने में कौन सा विटामिन सहायक है?", "options": ["विटामिन A", "विटामिन C", "विटामिन K", "विटामिन D"], "correct": 2},
+        {"q": "ध्वनि की गति (Speed of Sound) सबसे अधिक किस माध्यम में होती है?", "options": ["हवा", "जल", "ठोस (स्टील)", "निर्वात"], "correct": 2}
+    ],
+    "vyapam": [
+        {"q": "मध्य प्रदेश में 'तानसेन समारोह' किस शहर में आयोजित किया जाता है?", "options": ["भोपाल", "उज्जैन", "ग्वालियर", "इंदौर"], "correct": 2},
+        {"q": "भारत में 73वां संविधान संशोधन किस व्यवस्था से संबंधित है?", "options": ["नगर पालिका", "पंचायती राज व्यवस्था", "भूमि सुधार", "जीएसटी"], "correct": 1}
+    ],
+    "police": [
+        {"q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में स्थित है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0},
+        {"q": "वायुमंडल की सबसे निचली परत को क्या कहा जाता है?", "options": ["समताप मंडल", "क्षोभमंडल (Troposphere)", "मध्यमंडल", "आयनमंडल"], "correct": 1}
+    ],
+    "bank": [
+        {"q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0},
+        {"q": "भारत में 'रेपो रेट' (Repo Rate) का निर्धारण किसके द्वारा किया जाता है?", "options": ["वित्त मंत्रालय", "RBI", "SEBI", "SBI"], "correct": 1}
+    ],
+    "upsc": [
+        {"q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "बदरुद्दीन तैयबजी"], "correct": 0},
+        {"q": "प्रकाश वर्ष (Light Year) निम्नलिखित में से किसका मात्रक है?", "options": ["समय", "दूरी", "प्रकाश की गति", "तीव्रता"], "correct": 1}
+    ]
 }
 
-all_india_quiz_bank = [
-    # SSC
-    {"cat": "cat_ssc", "exam": "SSC CGL / CHSL", "q": "भारतीय संविधान की कौन सी अनुसूची 'भाषाओं' से संबंधित है?", "options": ["7वीं अनुसूची", "8वीं अनुसूची", "9वीं अनुसूची", "10वीं अनुसूची"], "correct": 1},
-    {"cat": "cat_ssc", "exam": "SSC MTS / GD", "q": "पानीपत की पहली लड़ाई किस वर्ष लड़ी गई थी?", "options": ["1526", "1556", "1761", "1539"], "correct": 0},
-    {"cat": "cat_ssc", "exam": "SSC CGL", "q": "कुचिपुड़ी किस राज्य का शास्त्रीय नृत्य है?", "options": ["केरल", "तमिलनाडु", "आंध्र प्रदेश", "कर्नाटक"], "correct": 2},
-    
-    # Railway
-    {"cat": "cat_rly", "exam": "Railway RRB NTPC", "q": "मानव शरीर में रक्त का थक्का (Blood Clot) जमाने में कौन सा विटामिन सहायक है?", "options": ["विटामिन A", "विटामिन C", "विटामिन K", "विटामिन D"], "correct": 2},
-    {"cat": "cat_rly", "exam": "Railway Group D", "q": "ध्वनि की गति (Speed of Sound) सबसे अधिक किस माध्यम में होती है?", "options": ["हवा", "जल", "ठोस (स्टील)", "निर्वात"], "correct": 2},
-    {"cat": "cat_rly", "exam": "Railway NTPC", "q": "भारत का पहला रेल बजट कब और किसने पेश किया था?", "options": ["जॉन मथाई (1947)", "जवाहरलाल नेहरू", "लाल बहादुर शास्त्री", "आर.के. षण्मुखम"], "correct": 0},
-
-    # Patwari / MPESB
-    {"cat": "cat_patwari", "exam": "पटवारी / व्यापमं विशेष", "q": "मध्य प्रदेश में 'तानसेन समारोह' किस शहर में आयोजित किया जाता है?", "options": ["भोपाल", "उज्जैन", "ग्वालियर", "इंदौर"], "correct": 2},
-    {"cat": "cat_patwari", "exam": "पटवारी / पंचायती राज", "q": "भारत में 73वां संविधान संशोधन किस व्यवस्था से संबंधित है?", "options": ["नगर पालिका", "पंचायती राज व्यवस्था", "भूमि सुधार", "जीएसटी"], "correct": 1},
-    {"cat": "cat_patwari", "exam": "व्यापमं सामान्य ज्ञान", "q": "मध्य प्रदेश का राज्य वृक्ष कौन सा है?", "options": ["पीपल", "बरगद", "नीम", "आम"], "correct": 1},
-
-    # Police
-    {"cat": "cat_police", "exam": "पुलिस भर्ती परीक्षा (SI / Constable)", "q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में स्थित है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0},
-    {"cat": "cat_police", "exam": "पुलिस भर्ती परीक्षा", "q": "वायुमंडल की सबसे निचली परत को क्या कहा जाता है?", "options": ["समताप मंडल", "क्षोभमंडल (Troposphere)", "मध्यमंडल", "आयनमंडल"], "correct": 1},
-    {"cat": "cat_police", "exam": "पुलिस परीक्षा", "q": "भारतीय पुलिस सेवा (IPS) के कैडर नियंत्रण का अधिकार किसके पास होता है?", "options": ["गृह मंत्रालय", "रक्षा मंत्रालय", "कानून मंत्रालय", "कार्मिक मंत्रालय"], "correct": 0},
-
-    # Banking
-    {"cat": "cat_bank", "exam": "Bank PO / Clerk", "q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0},
-    {"cat": "cat_bank", "exam": "Banking & Economy", "q": "भारत में 'रेपो रेट' (Repo Rate) का निर्धारण किसके द्वारा किया जाता है?", "options": ["वित्त मंत्रालय", "RBI", "SEBI", "SBI"], "correct": 1},
-
-    # UPSC / State PCS
-    {"cat": "cat_upsc", "exam": "UPSC / State PSC", "q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "बदरुद्दीन तैयबजी"], "correct": 0},
-    {"cat": "cat_upsc", "exam": "UPSC / General Science", "q": "प्रकाश वर्ष (Light Year) निम्नलिखित में से किसका मात्रक है?", "options": ["समय", "दूरी", "प्रकाश की गति", "तीव्रता"], "correct": 1}
-]
-
-def show_quiz_category_menu(chat_id):
-    """कैटेगरी चयन मेनू"""
+def send_exam_category_menu(chat_id):
     markup = types.InlineKeyboardMarkup(row_width=2)
-    b1 = types.InlineKeyboardButton("🏛️ SSC Exams", callback_data="qcat_cat_ssc")
-    b2 = types.InlineKeyboardButton("🚆 Railway", callback_data="qcat_cat_rly")
-    b3 = types.InlineKeyboardButton("🌾 पटवारी / व्यापमं", callback_data="qcat_cat_patwari")
-    b4 = types.InlineKeyboardButton("👮 पुलिस भर्ती", callback_data="qcat_cat_police")
-    b5 = types.InlineKeyboardButton("🏦 Bank PO/Clerk", callback_data="qcat_cat_bank")
-    b6 = types.InlineKeyboardButton("📚 UPSC / PSC", callback_data="qcat_cat_upsc")
-    b7 = types.InlineKeyboardButton("🎲 ऑल-इंडिया मिक्स क्विज़", callback_data="qcat_cat_all")
+    b1 = types.InlineKeyboardButton("🏛️ SSC (CGL, CHSL, GD)", callback_data="qcat_ssc")
+    b2 = types.InlineKeyboardButton("🚆 Railway (NTPC, Group D)", callback_data="qcat_railway")
+    b3 = types.InlineKeyboardButton("🌾 MP पटवारी / व्यापमं", callback_data="qcat_vyapam")
+    b4 = types.InlineKeyboardButton("👮 पुलिस (Constable / SI)", callback_data="qcat_police")
+    b5 = types.InlineKeyboardButton("🏦 बैंकिंग (IBPS, SBI PO/Clerk)", callback_data="qcat_bank")
+    b6 = types.InlineKeyboardButton("🇮🇳 UPSC / State PSC", callback_data="qcat_upsc")
+    b7 = types.InlineKeyboardButton("🏁 मुख्य मेनू पर जाएँ", callback_data="qcat_main")
     markup.add(b1, b2, b3, b4, b5, b6)
     markup.add(b7)
+    bot.send_message(chat_id, "📚 **किस सरकारी परीक्षा का टेस्ट देना चाहते हैं?**\nनीचे से अपनी परीक्षा चुनें 👇", reply_markup=markup, parse_mode="Markdown")
 
-    bot.send_message(
-        chat_id,
-        "🎯 **अपनी परीक्षा की कैटेगरी चुनें:**\n\nजिस भी सरकारी एग्जाम की तैयारी करनी है, उस पर क्लिक करें 👇",
-        reply_markup=markup,
-        parse_mode="Markdown"
-    )
-
-def send_quiz_question_by_category(chat_id, cat_key):
-    """चुनी गई कैटेगरी के अनुसार सवाल भेजना"""
-    if cat_key == "cat_all":
-        candidates = all_india_quiz_bank
-    else:
-        candidates = [q for q in all_india_quiz_bank if q["cat"] == cat_key]
-
-    if not candidates:
-        candidates = all_india_quiz_bank
-
-    q_data = random.choice(candidates)
-    actual_idx = all_india_quiz_bank.index(q_data)
+def send_category_question(chat_id, category):
+    q_list = exam_quizzes.get(category, exam_quizzes["ssc"])
+    q_idx = random.randint(0, len(q_list) - 1)
+    q_data = q_list[q_idx]
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     for opt_idx, option in enumerate(q_data["options"]):
-        markup.add(types.InlineKeyboardButton(option, callback_data=f"qz_{cat_key}_{actual_idx}_{opt_idx}"))
+        markup.add(types.InlineKeyboardButton(option, callback_data=f"qz_{category}_{q_idx}_{opt_idx}"))
 
+    cat_title = category.upper()
     quiz_text = (
-        f"🎯 **परीक्षा: {q_data['exam']}**\n\n"
+        f"🎯 **परीक्षा: {cat_title} स्पेशल**\n\n"
         f"❓ **प्रश्न:** {q_data['q']}\n\n"
         f"👇 सही विकल्प पर क्लिक करें:"
     )
     bot.send_message(chat_id, quiz_text, reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("qcat_"))
-def handle_category_selection(call):
+def handle_quiz_category(call):
     chat_id = call.message.chat.id
-    cat_key = call.data.replace("qcat_", "")
-    cat_title = CATEGORY_NAMES.get(cat_key, "क्विज़")
-    bot.answer_callback_query(call.id, f"{cat_title} शुरू हो रहा है...")
-    send_quiz_question_by_category(chat_id, cat_key)
+    cat = call.data.split("_")[1]
+    if cat == "main":
+        bot.answer_callback_query(call.id)
+        bot.delete_message(chat_id, call.message.message_id)
+        send_task_completion_menu(chat_id, "मुख्य मेनू से विकल्प चुनें 👇")
+    else:
+        bot.answer_callback_query(call.id, f"{cat.upper()} टेस्ट शुरू!")
+        bot.delete_message(chat_id, call.message.message_id)
+        send_category_question(chat_id, cat)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("qz_"))
 def process_quiz_answer(call):
     chat_id = call.message.chat.id
     parts = call.data.split("_")
-    # qz_action_cat OR qz_cat_qidx_optidx
-    action_or_cat = parts[1]
-
-    # 1. अगला सवाल
-    if action_or_cat == "next":
-        cat_key = parts[2]
-        bot.answer_callback_query(call.id, "अगला प्रश्न...")
-        send_quiz_question_by_category(chat_id, cat_key)
+    
+    if parts[1] == "next":
+        cat = parts[2]
+        bot.answer_callback_query(call.id, "अगला प्रश्न लोड हो रहा है...")
+        send_category_question(chat_id, cat)
         return
-
-    # 2. कैटेगरी बदलने का विकल्प
-    elif action_or_cat == "change":
-        bot.answer_callback_query(call.id, "कैटेगरी मेनू...")
-        show_quiz_category_menu(chat_id)
+    elif parts[1] == "change":
+        bot.answer_callback_query(call.id, "परीक्षा सूची...")
+        bot.delete_message(chat_id, call.message.message_id)
+        send_exam_category_menu(chat_id)
         return
-
-    # 3. क्विज़ समाप्त
-    elif action_or_cat == "finish":
+    elif parts[1] == "finish":
         bot.answer_callback_query(call.id, "क्विज़ समाप्त!")
+        bot.delete_message(chat_id, call.message.message_id)
         send_task_completion_menu(chat_id, "🏆 **शानदार अभ्यास!**\nमुख्य मेनू से अगला विकल्प चुनें 👇")
         return
 
-    # 4. उत्तर का मूल्यांकन
-    cat_key = parts[1]
+    cat = parts[1]
     q_idx = int(parts[2])
     opt_idx = int(parts[3])
-    q_data = all_india_quiz_bank[q_idx]
+    q_data = exam_quizzes[cat][q_idx]
 
     if opt_idx == q_data["correct"]:
         result_title = "🎉 **बिल्कुल सही उत्तर! शाबाश!**"
@@ -445,12 +468,11 @@ def process_quiz_answer(call):
         correct_ans = q_data["options"][q_data["correct"]]
         result_title = f"❌ **गलत उत्तर!**\n\n✅ **सही उत्तर है:** `{correct_ans}`"
 
-    # नेविगेशन बटन: अगला प्रश्न, कैटेगरी बदलें, क्विज़ समाप्त
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("➡️ अगला प्रश्न (Next Question)", callback_data=f"qz_next_{cat_key}"),
-        types.InlineKeyboardButton("🔄 परीक्षा / कैटेगरी बदलें (Change Exam)", callback_data="qz_change_menu"),
-        types.InlineKeyboardButton("🏁 क्विज़ समाप्त करें (मुख्य मेनू)", callback_data="qz_finish_menu")
+        types.InlineKeyboardButton("➡️ इसी परीक्षा का अगला प्रश्न", callback_data=f"qz_next_{cat}"),
+        types.InlineKeyboardButton("🔄 अन्य परीक्षा बदलें (Change Exam)", callback_data="qz_change"),
+        types.InlineKeyboardButton("🏁 मुख्य मेनू पर जाएँ", callback_data="qz_finish")
     )
 
     bot.edit_message_text(
@@ -462,7 +484,7 @@ def process_quiz_answer(call):
     )
 
 # ==========================================
-# 8. फीचर 4: आधुनिक डायनामिक 2-कॉलम सीवी इंजन
+# 9. फीचर 4: आधुनिक डायनामिक 2-कॉलम सीवी इंजन
 # ==========================================
 def is_valid_input(val):
     if not val:
@@ -494,7 +516,7 @@ def generate_full_resume_pdf(data):
     table_cell = ParagraphStyle('TCell', fontName='Helvetica', fontSize=8, leading=11, textColor=colors.HexColor("#1E293B"))
     table_head = ParagraphStyle('THead', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=colors.white)
 
-    # बायां कॉलम
+    # बायां कॉलम (Dark Navy Sidebar)
     left_elements = []
     if 'photo' in data:
         try:
@@ -529,7 +551,7 @@ def generate_full_resume_pdf(data):
     left_elements.append(Paragraph(f"<b>Languages:</b> {data.get('lang', 'Hindi, English')}", left_body))
     left_elements.append(Paragraph("<b>Nationality:</b> Indian", left_body))
 
-    # दायां कॉलम
+    # दायां कॉलम (Main Content)
     right_elements = []
     cand_name = data.get('name', 'CANDIDATE NAME').upper()
     right_elements.append(Paragraph(cand_name, name_style))
@@ -549,10 +571,12 @@ def generate_full_resume_pdf(data):
         right_elements.append(Paragraph(f"• {data['exp']}", right_body))
         right_elements.append(Spacer(1, 10))
 
+    # शैक्षणिक योग्यता टेबल
     edu_table_data = [
         [Paragraph("Course / Qualification", table_head), Paragraph("Board / University / Institute", table_head), Paragraph("Score / Status", table_head)]
     ]
 
+    # PG
     if is_valid_input(data.get('pg_course')):
         edu_table_data.append([
             Paragraph(f"<b>PG: {data['pg_course']}</b>", table_cell),
@@ -560,6 +584,7 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('pg_score', 'Passed'), table_cell)
         ])
 
+    # UG
     if is_valid_input(data.get('ug_course')):
         edu_table_data.append([
             Paragraph(f"<b>UG: {data['ug_course']}</b>", table_cell),
@@ -567,6 +592,7 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('ug_score', 'Passed'), table_cell)
         ])
 
+    # Diploma / ITI
     if is_valid_input(data.get('dip_course')):
         edu_table_data.append([
             Paragraph(f"<b>Diploma/ITI: {data['dip_course']}</b>", table_cell),
@@ -574,6 +600,7 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('dip_score', 'Passed'), table_cell)
         ])
 
+    # 12th
     if is_valid_input(data.get('edu_12th_board')):
         edu_table_data.append([
             Paragraph("<b>12th (Intermediate)</b>", table_cell),
@@ -581,6 +608,7 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('edu_12th_score', 'Passed'), table_cell)
         ])
 
+    # 10th
     if is_valid_input(data.get('edu_10th_board')):
         edu_table_data.append([
             Paragraph("<b>10th (High School)</b>", table_cell),
@@ -622,7 +650,7 @@ def generate_full_resume_pdf(data):
     return pdf_buffer.getvalue()
 
 # ==========================================
-# 9. टेक्स्ट इनपुट्स व बैक / रद्द / कैंसिल नेविगेशन
+# 10. टेक्स्ट इनपुट्स व बैक / रद्द / कैंसिल नेविगेशन
 # ==========================================
 @bot.message_handler(commands=['cancel', 'stop'])
 def handle_cancel_cmd(message):
@@ -632,16 +660,24 @@ def handle_cancel_cmd(message):
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
+    user_id = message.from_user.id
     txt = message.text.strip()
     session = user_sessions.setdefault(chat_id, {})
     mode = session.get('mode')
     step = session.get('step')
 
+    # सदस्यता जाँच गेटवे
+    if not is_user_subscribed(chat_id, user_id):
+        send_join_channel_prompt(chat_id)
+        return
+
+    # पूरा प्रोसेस कैंसिल
     if txt in ["❌ पूरा प्रोसेस कैंसिल (Cancel)", "cancel", "stop"]:
         session.clear()
         send_task_completion_menu(chat_id, "🚫 **पूरी प्रक्रिया कैंसिल कर दी गई है!**\nमुख्य मेनू से विकल्प चुनें 👇")
         return
 
+    # मुख्य मेनू बटन्स
     if txt == "📐 फोटो / सिग्नेचर रिसाइज़र":
         session.clear()
         session['mode'] = 'resizer'
@@ -657,7 +693,7 @@ def handle_text(message):
 
     elif txt == "🧠 सरकारी एग्जाम डेली क्विज़":
         session.clear()
-        show_quiz_category_menu(chat_id)
+        send_exam_category_menu(chat_id)
         return
 
     elif txt in ["📄 प्रोफेशनल रिज्यूम बनाएँ", "📄 प्रोफेशनल रिज्यूम / CV बनाएँ"]:
@@ -678,6 +714,7 @@ def handle_text(message):
         bot.send_message(chat_id, "💼 **प्रोफेशनल CV बिल्डर शुरू!**\n\n" + STEP_PROMPTS['s_name'], reply_markup=get_step_control_keyboard(can_back=False), parse_mode="Markdown")
         return
 
+    # फोटो पर नाम और डेट
     if mode == 'name_date':
         if txt == "🗑️ यह इनपुट रद्द करें":
             if step == 'wait_name':
@@ -709,6 +746,7 @@ def handle_text(message):
                 session.clear()
                 send_task_completion_menu(chat_id, "✅ फोटो तैयार हो चुकी है! अगला विकल्प नीचे से चुनें:")
 
+    # CV / रिज्यूम स्मार्ट नेविगेशन
     elif mode == 'resume':
         history = session.setdefault('history', [])
         r = session.setdefault('rdata', {})
@@ -756,6 +794,8 @@ def handle_text(message):
         elif current_step == 's_dob':
             r['dob'] = txt
             session['step'] = 's_pg_course'
+
+        # PG
         elif current_step == 's_pg_course':
             if is_valid_input(txt):
                 r['pg_course'] = txt
@@ -769,6 +809,8 @@ def handle_text(message):
         elif current_step == 's_pg_score':
             r['pg_score'] = txt
             session['step'] = 's_ug_course'
+
+        # UG
         elif current_step == 's_ug_course':
             if is_valid_input(txt):
                 r['ug_course'] = txt
@@ -782,6 +824,8 @@ def handle_text(message):
         elif current_step == 's_ug_score':
             r['ug_score'] = txt
             session['step'] = 's_dip_course'
+
+        # Diploma / ITI
         elif current_step == 's_dip_course':
             if is_valid_input(txt):
                 r['dip_course'] = txt
@@ -795,6 +839,8 @@ def handle_text(message):
         elif current_step == 's_dip_score':
             r['dip_score'] = txt
             session['step'] = 's_12th_board'
+
+        # 12th
         elif current_step == 's_12th_board':
             if is_valid_input(txt):
                 r['edu_12th_board'] = txt
@@ -805,12 +851,16 @@ def handle_text(message):
         elif current_step == 's_12th_score':
             r['edu_12th_score'] = txt
             session['step'] = 's_10th_board'
+
+        # 10th
         elif current_step == 's_10th_board':
             r['edu_10th_board'] = txt
             session['step'] = 's_10th_score'
         elif current_step == 's_10th_score':
             r['edu_10th_score'] = txt
             session['step'] = 's_skills'
+
+        # Skills, Exp, Certs
         elif current_step == 's_skills':
             r['skills'] = txt
             session['step'] = 's_exp'
@@ -826,7 +876,7 @@ def handle_text(message):
         bot.send_message(chat_id, next_prompt, reply_markup=get_step_control_keyboard(can_back=True, has_no_photo=(next_step=='s_photo')), parse_mode="Markdown")
 
 # ==========================================
-# 10. फोटो व डॉक्यूमेंट हैंडलर
+# 11. फोटो व डॉक्यूमेंट हैंडलर
 # ==========================================
 def deliver_cv_pdf(chat_id, rdata):
     msg = bot.send_message(chat_id, "⏳ **आपका मॉडर्न 2-कॉलम प्रोफेशनल CV तैयार किया जा रहा है...**")
@@ -876,9 +926,15 @@ def process_cv_actions(call):
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_photos_and_docs(message):
     chat_id = message.chat.id
+    user_id = message.from_user.id
     session = user_sessions.setdefault(chat_id, {})
     mode = session.get('mode')
     step = session.get('step')
+
+    # सदस्यता जाँच
+    if not is_user_subscribed(chat_id, user_id):
+        send_join_channel_prompt(chat_id)
+        return
 
     file_id = message.photo[-1].file_id if message.content_type == 'photo' else message.document.file_id
     file_info = bot.get_file(file_id)
@@ -895,6 +951,7 @@ def handle_photos_and_docs(message):
         deliver_cv_pdf(chat_id, rdata)
 
     else:
+        # रिसाइज़र मोड
         session['temp_photo'] = downloaded
         markup = types.InlineKeyboardMarkup(row_width=2)
         b1 = types.InlineKeyboardButton("📷 पासपोर्ट फोटो (20-50 KB)", callback_data="res_photo")
@@ -904,22 +961,18 @@ def handle_photos_and_docs(message):
         markup.add(b1, b2, b3, b4)
         bot.reply_to(message, "⚙️ **किस सरकारी मानक साइज़ में कन्वर्ट करना है?**", reply_markup=markup, parse_mode="Markdown")
 
-
 # ==========================================
-# 11. मुख्य रनर (Safe Webhook with Rate-Limit Handling)
+# 12. मुख्य रनर (Safe Webhook with Rate-Limit Handling)
 # ==========================================
 if __name__ == '__main__':
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
 
-    # टेलीग्राम रेट-लिमिट (429) से बचने के लिए सेफ लूप
-    webhook_set = False
     for attempt in range(5):
         try:
             bot.remove_webhook()
             time.sleep(2)
             bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
             print(f"🚀 Master Bot Engine active at {WEBHOOK_URL}")
-            webhook_set = True
             break
         except telebot.apihelper.ApiTelegramException as e:
             if e.error_code == 429:
