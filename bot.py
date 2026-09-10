@@ -204,64 +204,98 @@ def process_resize_callback(call):
         bot.edit_message_text(f"❌ एरर: {e}", chat_id, msg.message_id)
 
 # ==========================================
-# 6. फीचर 2: फोटो पर नाम व तारीख (Left-to-Right Bold Strip)
+# 6. फीचर 2: फोटो पर नाम व तारीख प्रिंटर (100% Sarkari Exam Standard - Never Cut)
 # ==========================================
 def apply_name_and_date(image_bytes, name, date_text):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     width, height = image.size
 
-    # सरकारी मानक स्ट्रिप: फोटो की ऊंचाई का केवल 14% (नो एक्स्ट्रा गैप)
-    strip_height = max(int(height * 0.14), 45)
+    # सरकारी मानक: फोटो के ठीक नीचे 16% से 18% ऊंचाई की सफेद पट्टी
+    strip_height = max(int(height * 0.18), 70)
     new_image = Image.new("RGB", (width, height + strip_height), "white")
     new_image.paste(image, (0, 0))
 
     draw = ImageDraw.Draw(new_image)
 
-    # सिंगल लाइन लेफ्ट-टू-राइट टेक्स्ट
-    clean_name = name.strip().upper()
-    clean_date = date_text.strip().upper()
-    full_text = f"NAME: {clean_name}  |  DATE: {clean_date}"
+    # साफ़ टेक्स्ट तैयार करें
+    name_str = name.strip().upper()
+    date_str = date_text.strip().upper()
+    if not date_str.startswith("DOB") and not date_str.startswith("DOP") and not date_str.startswith("DATE"):
+        date_display = f"DOP: {date_str}"
+    else:
+        date_display = date_str
 
-    # फॉन्ट लोड और ऑटो-स्केलिंग (बोल्ड और बड़ा साइज)
-    font = None
-    target_font_size = max(int(strip_height * 0.50), 16)
-    
+    line1 = f"NAME: {name_str}"
+    line2 = date_display
+
+    # सिस्टम पर मौजूद बोल्ड फॉन्ट ढूँढना
     font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBoldOblique.ttf"
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"
     ]
+    selected_font_path = None
     for p in font_paths:
         if os.path.exists(p):
+            selected_font_path = p
+            break
+
+    # ऑटो-फिट लॉजिक: ऐसा फॉन्ट साइज़ चुनना जिससे टेक्स्ट दोनों तरफ 15px अंदर रहे और कभी न कटे
+    font_size = int(strip_height * 0.36)
+    font = None
+
+    while font_size >= 10:
+        if selected_font_path:
             try:
-                font = ImageFont.truetype(p, target_font_size)
-                break
+                test_font = ImageFont.truetype(selected_font_path, font_size)
             except:
-                continue
+                test_font = ImageFont.load_default()
+        else:
+            test_font = ImageFont.load_default()
+
+        # दोनों लाइनों की चौड़ाई मापें
+        bbox1 = draw.textbbox((0, 0), line1, font=test_font)
+        bbox2 = draw.textbbox((0, 0), line2, font=test_font)
+        w1 = bbox1[2] - bbox1[0]
+        w2 = bbox2[2] - bbox2[0]
+
+        max_text_w = max(w1, w2)
+        # अगर टेक्स्ट चौड़ाई के अंदर आ गया, तो यही साइज़ फाइनल है
+        if max_text_w <= (width - 24):
+            font = test_font
+            break
+        font_size -= 2
 
     if not font:
         font = ImageFont.load_default()
 
-    try:
-        bbox = draw.textbbox((0, 0), full_text, font=font)
-        text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
-    except:
-        text_w = int(width * 0.8)
-        text_h = int(strip_height * 0.5)
+    # दोनों लाइनों की सटीक स्थिति (Perfect Center Alignment)
+    bbox1 = draw.textbbox((0, 0), line1, font=font)
+    bbox2 = draw.textbbox((0, 0), line2, font=font)
+    w1, h1 = bbox1[2] - bbox1[0], bbox1[3] - bbox1[1]
+    w2, h2 = bbox2[2] - bbox2[0], bbox2[3] - bbox2[1]
 
-    pos_x = 14 if text_w > width - 24 else (width - text_w) // 2
-    pos_y = height + ((strip_height - text_h) // 2) - 2
+    # केंद्र में सेट करने के लिए X पोजीशन
+    x1 = (width - w1) // 2
+    x2 = (width - w2) // 2
 
-    # हाई-कंट्रास्ट बोल्ड टेक्स्ट (2px थिकनेस)
-    for ox, oy in [(0, 0), (1, 0), (0, 1), (1, 1)]:
-        draw.text((pos_x + ox, pos_y + oy), full_text, fill=(15, 23, 42), font=font)
+    # पट्टी के अंदर बराबर दूरी पर Y पोजीशन
+    total_text_h = h1 + h2 + 8
+    start_y = height + ((strip_height - total_text_h) // 2)
+
+    y1 = start_y
+    y2 = start_y + h1 + 8
+
+    # डीप ब्लैक कलर में दोनों लाइनें ड्रा करें
+    draw.text((x1, y1), line1, fill=(0, 0, 0), font=font)
+    draw.text((x2, y2), line2, fill=(0, 0, 0), font=font)
+
+    # फोटो और स्ट्रिप के बीच एक पतली सेपरेशन लाइन (क्लीन फिनिशिंग के लिए)
+    draw.line([(0, height), (width, height)], fill=(200, 200, 200), width=1)
 
     buf = io.BytesIO()
     new_image.save(buf, format="JPEG", quality=95)
     return buf.getvalue()
-
 # ==========================================
 # 7. फीचर 3: डेली सरकारी एग्जाम क्विज़
 # ==========================================
