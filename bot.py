@@ -12,6 +12,7 @@ from flask import Flask, request
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+import pymongo
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
@@ -43,17 +44,42 @@ def webhook_status():
     return "✅ Master Student Platform Engine Live 24/7!", 200
 
 # ==========================================
-# 3. सब्सक्रिप्शन और वायरल रेफरल सिस्टम (Refer & Earn)
+# 3. परमानेंट डेटाबेस (MongoDB) + वायरल रेफरल सिस्टम
 # ==========================================
-user_referrals = {}  # {user_id: count}
-has_joined_via = {}  # {new_user_id: referrer_id}
+# ⚠️ ध्यान दें: नीचे <anjanchara0_db_user>की जगह अपना असली यूज़रनेम लिखें
+MONGO_URI = "mongodb+srv://<db_username>:CBgHFMd2oDjGuXO3@cluster0.veqiuri.mongodb.net/?appName=Cluster0"
+
+try:
+    mongo_client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    db = mongo_client["SarkariBotDB"]
+    users_col = db["Users"]
+    print("✅ MongoDB Database Connected!")
+except Exception as e:
+    print("❌ MongoDB Connection Error:", e)
+
+def get_referral_count(user_id):
+    """डेटाबेस से रेफरल स्कोर निकालें"""
+    try:
+        user = users_col.find_one({"_id": user_id})
+        return user.get("referral_count", 0) if user else 0
+    except:
+        return 0
+
+def record_referral(new_user_id, referrer_id):
+    """नए रेफरल को परमानेंट सेव करें"""
+    try:
+        user = users_col.find_one({"_id": new_user_id})
+        if not user or not user.get("referred_by"):
+            users_col.update_one({"_id": new_user_id}, {"$set": {"referred_by": referrer_id}}, upsert=True)
+            users_col.update_one({"_id": referrer_id}, {"$inc": {"referral_count": 1}}, upsert=True)
+            return True
+    except: pass
+    return False
 
 def is_user_subscribed(chat_id, user_id):
     try:
         member = bot.get_chat_member(CHANNEL_ID, user_id)
-        if member.status in ['member', 'administrator', 'creator']:
-            return True
-        return False
+        return member.status in ['member', 'administrator', 'creator']
     except Exception:
         return True
 
@@ -62,18 +88,11 @@ def send_join_channel_prompt(chat_id):
     btn_join = types.InlineKeyboardButton("📢 चैनल जॉइन करें (यहाँ क्लिक करें)", url="https://t.me/apnamorenasarkarijob")
     btn_verify = types.InlineKeyboardButton("✅ मैंने जॉइन कर लिया (Verify & Unlock)", callback_data="sub_verify_check")
     markup.add(btn_join, btn_verify)
-    
-    text = (
-        "⚠️ **चैनल सदस्यता अनिवार्य है!**\n\n"
-        "सभी सरकारी टूल्स (क्विज़, फोटो रिसाइज़र, CV मेकर, टाइपिंग टेस्ट) का उपयोग करने के लिए हमारे चैनल से जुड़े रहना अनिवार्य है।\n\n"
-        "👉 नीचे बटन दबाकर चैनल जॉइन करें, फिर **'मैंने जॉइन कर लिया'** पर क्लिक करें।"
-    )
-    bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(chat_id, "⚠️ **चैनल सदस्यता अनिवार्य है!**\n\nसभी सरकारी टूल्स का उपयोग करने के लिए हमारे चैनल से जुड़े रहना अनिवार्य है।\n\n👉 नीचे बटन दबाकर चैनल जॉइन करें, फिर **'मैंने जॉइन कर लिया'** पर क्लिक करें。", reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "sub_verify_check")
 def handle_verify_subscription(call):
-    chat_id = call.message.chat.id
-    user_id = call.from_user.id
+    chat_id, user_id = call.message.chat.id, call.from_user.id
     if is_user_subscribed(chat_id, user_id):
         bot.answer_callback_query(call.id, "🎉 वेरिफिकेशन सफल! टूल्स अनलॉक हो गए हैं।", show_alert=True)
         bot.delete_message(chat_id, call.message.message_id)
@@ -82,20 +101,18 @@ def handle_verify_subscription(call):
         bot.answer_callback_query(call.id, "❌ आपने अभी तक चैनल जॉइन नहीं किया है!", show_alert=True)
 
 def check_premium(chat_id, user_id):
-    """प्रीमियम लॉक चेक (5 रेफरल अनिवार्य)"""
-    refs = user_referrals.get(user_id, 0)
-    if refs >= 5:
-        return True
-    else:
-        bot.send_message(
-            chat_id, 
-            f"🔒 **यह एक Premium (VIP) टूल है!**\n\n"
-            f"क्विज़, करेंट अफेयर्स, टाइपिंग और CV मेकर को फ्री में जीवन भर के लिए अनलॉक करने हेतु **5 दोस्तों को बॉट से जोड़ें**।\n\n"
-            f"📊 **आपके वर्तमान रेफरल:** `{refs} / 5`\n\n"
-            f"👉 मेनू से **'🎁 रेफर करें (Link निकालें)'** बटन दबाएं और अपना लिंक दोस्तों को भेजें!", 
-            parse_mode="Markdown"
-        )
-        return False
+    """प्रीमियम लॉक चेक (MongoDB से 5 रेफरल अनिवार्य)"""
+    refs = get_referral_count(user_id)
+    if refs >= 5: return True
+    bot.send_message(
+        chat_id, 
+        f"🔒 **यह एक Premium (VIP) टूल है!**\n\n"
+        f"क्विज़, करेंट अफेयर्स, टाइपिंग और CV मेकर को फ्री में जीवन भर के लिए अनलॉक करने हेतु **5 दोस्तों को बॉट से जोड़ें**।\n\n"
+        f"📊 **आपके वर्तमान रेफरल:** `{refs} / 5`\n\n"
+        f"👉 मेनू से **'🎁 रेफर करें (Link निकालें)'** बटन दबाएं और अपना लिंक दोस्तों को भेजें!", 
+        parse_mode="Markdown"
+    )
+    return False
 
 # ==========================================
 # 4. बैकग्राउंड अलर्ट्स और न्यूज़
@@ -104,22 +121,17 @@ sent_jobs = set()
 
 def fetch_sarkari_result_direct():
     url = "https://www.sarkariresult.com/latestjob/"
-    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            post_div = soup.find('div', id='post')
-            if post_div:
-                links = post_div.find_all('a')
-                for a in links[:3]:
-                    title = a.get_text().strip()
-                    link = a.get('href')
+            if post_div := soup.find('div', id='post'):
+                for a in post_div.find_all('a')[:3]:
+                    title, link = a.get_text().strip(), a.get('href')
                     if link and title and link not in sent_jobs:
                         sent_jobs.add(link)
-                        if not link.startswith('http'): link = f"https://www.sarkariresult.com{link}"
-                        msg = f"📌 **सीधा ऑनलाइन फॉर्म**\n\n🏢 **भर्ती:** {title}\n🔗 **लिंक:** {link}"
-                        bot.send_message(CHANNEL_ID, msg)
+                        link = f"https://www.sarkariresult.com{link}" if not link.startswith('http') else link
+                        bot.send_message(CHANNEL_ID, f"📌 **सीधा ऑनलाइन फॉर्म**\n\n🏢 **भर्ती:** {title}\n🔗 **लिंक:** {link}")
                         time.sleep(2)
     except: pass
 
@@ -131,8 +143,7 @@ def fetch_all_india_hindi_news():
             for entry in feed.entries[:2]:
                 if entry.link not in sent_jobs:
                     sent_jobs.add(entry.link)
-                    msg = f"📢 **सरकारी भर्ती न्यूज़** 🇮🇳\n\n📰 **अपडेट:** {entry.title}\n👉 **पूरी खबर:** {entry.link}"
-                    bot.send_message(CHANNEL_ID, msg)
+                    bot.send_message(CHANNEL_ID, f"📢 **सरकारी भर्ती न्यूज़** 🇮🇳\n\n📰 **अपडेट:** {entry.title}\n👉 **पूरी खबर:** {entry.link}")
                     time.sleep(2)
         except: pass
 
@@ -149,8 +160,6 @@ def job_alert_scheduler():
 # 5. इन-मेमोरी स्टेट व नया स्ट्रिक्ट VIP मेनू
 # ==========================================
 user_sessions = {}
-
-RESUME_STEPS = ['s_name', 's_phone', 's_email', 's_address', 's_father', 's_dob', 's_pg_course', 's_pg_board', 's_pg_score', 's_ug_course', 's_ug_board', 's_ug_score', 's_dip_course', 's_dip_board', 's_dip_score', 's_12th_board', 's_12th_score', 's_10th_board', 's_10th_score', 's_skills', 's_exp', 's_certs', 's_photo']
 
 STEP_PROMPTS = {
     's_name': "👉 सबसे पहले अपना **पूरा नाम (Full Name)** लिखें:",
@@ -180,13 +189,10 @@ STEP_PROMPTS = {
 
 def get_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # केवल ये 2 टूल पूरी तरह फ्री हैं
     markup.add(types.KeyboardButton("📐 फोटो / साइन रिसाइज़र"), types.KeyboardButton("🏷️ फोटो पर नाम व तारीख"))
-    # बाकी सब पर ताला (VIP) लगा है
     markup.add(types.KeyboardButton("🔒 सरकारी एग्जाम क्विज़ (VIP)"), types.KeyboardButton("🔒 टाइपिंग स्पीड टेस्ट (VIP)"))
     markup.add(types.KeyboardButton("🔒 डेली करेंट अफेयर्स (VIP)"), types.KeyboardButton("🔒 CV / रिज्यूम बनाएँ (VIP)"))
     markup.add(types.KeyboardButton("🔒 आयु गणक (Age Calc) (VIP)"), types.KeyboardButton("🔒 फ्री PDF लाइब्रेरी (VIP)"))
-    # लिंक निकालने का फ्री बटन
     markup.add(types.KeyboardButton("🎁 रेफर करें (Link निकालें)"))
     return markup
 
@@ -209,20 +215,18 @@ def send_welcome(message):
     chat_id = message.chat.id
     user_sessions.pop(chat_id, None)
 
-    # रेफरल चेकिंग लॉजिक
     args = message.text.split()
     if len(args) > 1 and args[1].startswith('ref_'):
         try:
             referrer_id = int(args[1].split('_')[1])
-            if user_id not in has_joined_via and referrer_id != user_id:
-                has_joined_via[user_id] = referrer_id
-                user_referrals[referrer_id] = user_referrals.get(referrer_id, 0) + 1
-                bot.send_message(referrer_id, f"🎉 **बधाई!** एक नए दोस्त ने आपके लिंक से जॉइन किया है।\nकुल रेफरल: `{user_referrals[referrer_id]} / 5`\n\n(5 होते ही सभी VIP टूल्स खुल जाएंगे!)", parse_mode="Markdown")
+            if referrer_id != user_id:
+                if record_referral(user_id, referrer_id):
+                    count = get_referral_count(referrer_id)
+                    bot.send_message(referrer_id, f"🎉 **बधाई!** एक नए दोस्त ने आपके लिंक से जॉइन किया है।\nकुल रेफरल: `{count} / 5`\n\n(5 होते ही सभी VIP टूल्स खुल जाएंगे!)", parse_mode="Markdown")
         except: pass
 
     if not is_user_subscribed(chat_id, user_id):
-        send_join_channel_prompt(chat_id)
-        return
+        return send_join_channel_prompt(chat_id)
 
     text = (
         "👋 **ऑल-इन-वन स्टूडेंट सुपर-टूल में आपका स्वागत है!** 🇮🇳\n\n"
@@ -242,17 +246,11 @@ def calculate_age(dob, target):
         d1 = datetime.strptime(dob, "%d/%m/%Y")
         d2 = datetime.now() if target in ["आज", "today", "aaj"] else datetime.strptime(target, "%d/%m/%Y")
         if d1 > d2: return "❌ जन्मतिथि लक्ष्य तिथि से आगे नहीं हो सकती।"
-        
         years, months, days = d2.year - d1.year, d2.month - d1.month, d2.day - d1.day
-        if days < 0:
-            months -= 1
-            days += 30  # Approx for simplicity
-        if months < 0:
-            years -= 1
-            months += 12
+        if days < 0: months -= 1; days += 30
+        if months < 0: years -= 1; months += 12
         return f"✅ **आपकी आयु:** `{years} वर्ष, {months} महीने, और {days} दिन` है।"
-    except:
-        return "❌ तारीख का फॉर्मेट गलत है। कृपया **DD/MM/YYYY** (उदा: 15/08/2002) में भेजें।"
+    except: return "❌ तारीख का फॉर्मेट गलत है। कृपया **DD/MM/YYYY** (उदा: 15/08/2002) में भेजें।"
 
 # ==========================================
 # 7. फोटो रिसाइज़र व नेम-डेट स्टैम्पर (FREE)
@@ -321,7 +319,6 @@ def apply_name_and_date(image_bytes, name, date_text):
     draw.text((x1, start_y), f"NAME: {name_str}", fill=(0, 0, 0), font=font)
     draw.text((x2, start_y + h1 + 8), date_display, fill=(0, 0, 0), font=font)
     draw.line([(0, height), (width, height)], fill=(200, 200, 200), width=1)
-
     buf = io.BytesIO()
     new_image.save(buf, format="JPEG", quality=95)
     return buf.getvalue()
@@ -544,7 +541,7 @@ def handle_text(message):
         try:
             bot_usr = bot.get_me().username
             link = f"https://t.me/{bot_usr}?start=ref_{user_id}"
-            refs = user_referrals.get(user_id, 0)
+            refs = get_referral_count(user_id)
             bot.send_message(
                 chat_id, 
                 f"🎁 **Refer & Earn (अनलॉक VIP टूल्स)**\n\n"
@@ -553,8 +550,7 @@ def handle_text(message):
                 f"🔗 **इसे कॉपी करके शेयर करें:**\n`{link}`", 
                 parse_mode="Markdown"
             )
-        except Exception as e:
-            bot.send_message(chat_id, "❌ लिंक निकालने में त्रुटि। कृपया थोड़ी देर बाद प्रयास करें।")
+        except: bot.send_message(chat_id, "❌ लिंक निकालने में त्रुटि। कृपया थोड़ी देर बाद प्रयास करें।")
         return
 
     # ================== VIP (LOCKED) TOOLS ==================
@@ -611,10 +607,8 @@ def handle_text(message):
             session['dob'] = txt; session['step'] = 'target'
             bot.send_message(chat_id, "🎯 अब **किस तारीख तक** आयु निकालनी है? (उदा: `01/01/2024` या `आज` लिखें):", parse_mode="Markdown")
         elif step == 'target':
-            res = calculate_age(session['dob'], txt)
-            bot.send_message(chat_id, res, parse_mode="Markdown")
-            session.clear()
-            send_task_completion_menu(chat_id)
+            bot.send_message(chat_id, calculate_age(session['dob'], txt), parse_mode="Markdown")
+            session.clear(); send_task_completion_menu(chat_id)
 
     elif mode == 'name_date':
         if txt == "🗑️ यह इनपुट रद्द करें": return bot.send_message(chat_id, "✍️ इनपुट रीसेट।")
