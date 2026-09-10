@@ -18,7 +18,7 @@ from reportlab.lib import colors
 # ==========================================
 # 1. कॉन्फ़िगरेशन
 # ==========================================
-BOT_TOKEN = "8526721171:AAEN1zSLW1DkNqf6EaZwDFFW5-bcfvkTa6M"
+BOT_TOKEN = "8526721171:AAEJy5j04q3zB-rBcywxwxIjyKFGVzef24Q"
 CHANNEL_ID = "@apnamorenasarkarijob"
 WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"
 
