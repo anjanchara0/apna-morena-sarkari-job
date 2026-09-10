@@ -16,10 +16,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==========================================
-# 1. कॉन्फ़िगरेशन (Render Environment Variable Safe)
+# 1. कॉन्फ़िगरेशन
 # ==========================================
-# Render के Environment में BOT_TOKEN सेट हो तो वह उठाएगा, वरना डिफॉल्ट टोकन लेगा
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8526721171:AAGEzMTnbtqo5FfENR1dAudxRHw_1njSs6E")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8526721171:AAHHhAXNmBYXKfzTHp6ZbeLkUS9JJuPgqu8")
 CHANNEL_ID = "@apnamorenasarkarijob"
 WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"
 
@@ -41,7 +40,7 @@ def webhook_status():
     return "✅ Master Student Platform Engine Live 24/7!", 200
 
 # ==========================================
-# 3. ऑल-इंडिया डायरेक्ट फॉर्म + हिंदी न्यूज़ इंजन (10 Min Updates)
+# 3. ऑल-इंडिया डायरेक्ट फॉर्म + हिंदी न्यूज़ इंजन
 # ==========================================
 sent_jobs = set()
 
@@ -108,9 +107,47 @@ def job_alert_scheduler():
         fetch_all_india_hindi_news()
 
 # ==========================================
-# 4. इन-मेमोरी स्टेट और यूनिवर्सल मेनू
+# 4. इन-मेमोरी स्टेट, मेनू व नेविगेशन कीबोर्ड
 # ==========================================
 user_sessions = {}
+
+# CV स्टेप्स का सटीक क्रम (Back नेविगेशन के लिए)
+RESUME_STEPS = [
+    's_name', 's_phone', 's_email', 's_address', 's_father', 's_dob',
+    's_pg_course', 's_pg_board', 's_pg_score',
+    's_ug_course', 's_ug_board', 's_ug_score',
+    's_dip_course', 's_dip_board', 's_dip_score',
+    's_12th_board', 's_12th_score',
+    's_10th_board', 's_10th_score',
+    's_skills', 's_exp', 's_certs', 's_photo'
+]
+
+# प्रत्येक स्टेप का प्रश्न संदेश
+STEP_PROMPTS = {
+    's_name': "👉 सबसे पहले अपना **पूरा नाम (Full Name)** लिखें:",
+    's_phone': "📱 अपना **मोबाइल नंबर** भेजें:",
+    's_email': "✉️ अपनी **ईमेल आईडी** भेजें:",
+    's_address': "📍 अपना **शहर / पता (Address)** भेजें (उदा: `Morena, MP`):",
+    's_father': "👨‍👦 **पिता का नाम (Father's Name)** भेजें:",
+    's_dob': "🎂 अपनी **जन्मतिथि (DOB)** भेजें (उदा: `15/08/2002`):",
+    's_pg_course': "🎓 **पोस्ट ग्रेजुएशन (Master's / PG):**\nडिग्री का नाम लिखें (उदा: `MCA / M.Sc / MA / MBA`)\n*(नहीं किया है तो **NA** लिखें)*:",
+    's_pg_board': "🏛️ **PG किस यूनिवर्सिटी / कॉलेज से किया?**\n(उदा: `Jiwaji University`):",
+    's_pg_score': "📊 **PG में कितने प्रतिशत (%) बने?**\n(उदा: `75%` या `Passed`):",
+    's_ug_course': "🏛️ **ग्रेजुएशन (Graduation / Degree):**\nडिग्री का नाम लिखें (उदा: `BCA / B.Sc / BA / B.Com`)\n*(नहीं किया है तो **NA** लिखें)*:",
+    's_ug_board': "🏛️ **ग्रेजुएशन किस यूनिवर्सिटी / कॉलेज से किया?**\n(उदा: `Jiwaji University`):",
+    's_ug_score': "📊 **ग्रेजुएशन में कितने प्रतिशत (%) बने?**\n(उदा: `72%` या `Passed`):",
+    's_dip_course': "⚙️ **डिप्लोमा / ITI / पॉलिटेक्निक:**\nकोर्स या ट्रेड का नाम (उदा: `ITI COPA / Poly Mechanical`)\n*(नहीं किया है तो **NA** लिखें)*:",
+    's_dip_board': "🏢 **डिप्लोमा / ITI किस संस्थान या बोर्ड से किया?**\n(उदा: `NCVT / RGPV Bhopal`):",
+    's_dip_score': "📊 **डिप्लोमा / ITI में कितने प्रतिशत (%) बने?**\n(उदा: `80%`):",
+    's_12th_board': "📚 **12वीं (12th Standard):**\nकिस बोर्ड / स्कूल से किया? (उदा: `MP Board / CBSE`)\n*(अगर लागू न हो तो **NA** लिखें)*:",
+    's_12th_score': "📊 **12वीं में कितने प्रतिशत (%) बने?**\n(उदा: `75%`):",
+    's_10th_board': "📖 **10वीं (10th Standard):**\nकिस बोर्ड / स्कूल से किया? (उदा: `MP Board / CBSE`):",
+    's_10th_score': "📊 **10वीं में कितने प्रतिशत (%) बने?**\n(उदा: `82%`):",
+    's_skills': "⚡ अपनी **स्किल्स (Skills)** लिखें:\n(उदा: `MS Office, Tally Prime, Hindi/English Typing, Communication, Internet`):",
+    's_exp': "💼 **कार्य अनुभव (Work Experience):**\n(उदा: `1 Year as Data Entry Operator` या फ्रेशर हैं तो **Fresher** लिखें):",
+    's_certs': "📜 **सर्टिफिकेट्स (Certificates / Extra Courses):**\n(उदा: `CCC, ADCA, CPCT, DCA` या नहीं है तो **NA** लिखें):",
+    's_photo': "📷 **अंतिम चरण: अपनी पासपोर्ट फोटो भेजें**\n(अगर फोटो नहीं लगाना चाहते तो नीचे दिया 'बिना फोटो' बटन दबाएँ):"
+}
 
 def get_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -121,16 +158,32 @@ def get_main_menu():
     markup.add(b1, b2, b3, b4)
     return markup
 
+def get_step_control_keyboard(can_back=True, has_no_photo=False):
+    """हर सवाल के नीचे दिखने वाले बैक, रद्द और कैंसिल बटन"""
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    row = []
+    if can_back:
+        row.append(types.KeyboardButton("⬅️ पिछला स्टेप (Back)"))
+    row.append(types.KeyboardButton("🗑️ यह इनपुट रद्द करें"))
+    markup.add(*row)
+    
+    if has_no_photo:
+        markup.add(types.KeyboardButton("🚫 बिना फोटो के ही CV बनाएँ"))
+        
+    markup.add(types.KeyboardButton("❌ पूरा प्रोसेस कैंसिल (Cancel)"))
+    return markup
+
 def send_task_completion_menu(chat_id, success_text="✅ काम पूरा हुआ! अब अगला विकल्प चुनें 👇"):
     bot.send_message(chat_id, success_text, reply_markup=get_main_menu(), parse_mode="Markdown")
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
+    user_sessions.pop(message.chat.id, None)
     text = (
         "👋 **ऑल-इन-वन स्टूडेंट सुपर-टूल में आपका स्वागत है!** 🇮🇳\n\n"
         "यहाँ आपको सरकारी और प्राइवेट करियर की हर सुविधा मिलती है:\n"
         "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
-        "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें (100% सरकारी मानक)\n"
+        "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें\n"
         "• 📄 PG, UG, Diploma, Exp युक्त मॉडर्न 2-कॉलम CV PDF\n"
         "• 🧠 डेली परीक्षा टेस्ट क्विज़\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
@@ -190,6 +243,7 @@ def process_resize_callback(call):
         out_file.name = "Sarkari_Ready.jpg"
         bot.send_document(chat_id, out_file, caption=f"✅ **{tag} तैयार है!**\n📏 साइज़: `{size_kb:.1f} KB`", parse_mode="Markdown")
         bot.delete_message(chat_id, msg.message_id)
+        session.clear()
         send_task_completion_menu(chat_id, "✅ फोटो रिसाइज़ हो चुकी है! अब नीचे से अगला विकल्प चुनें:")
     except Exception as e:
         bot.edit_message_text(f"❌ एरर: {e}", chat_id, msg.message_id)
@@ -389,12 +443,10 @@ def generate_full_resume_pdf(data):
         right_elements.append(Paragraph(f"• {data['exp']}", right_body))
         right_elements.append(Spacer(1, 10))
 
-    # शैक्षणिक योग्यता टेबल (डिटेल्ड डिग्री, यूनिवर्सिटी और स्कोर)
     edu_table_data = [
         [Paragraph("Course / Qualification", table_head), Paragraph("Board / University / Institute", table_head), Paragraph("Score / Status", table_head)]
     ]
 
-    # 1. Post Graduation (PG)
     if is_valid_input(data.get('pg_course')):
         edu_table_data.append([
             Paragraph(f"<b>PG: {data['pg_course']}</b>", table_cell),
@@ -402,7 +454,6 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('pg_score', 'Passed'), table_cell)
         ])
 
-    # 2. Graduation (UG)
     if is_valid_input(data.get('ug_course')):
         edu_table_data.append([
             Paragraph(f"<b>UG: {data['ug_course']}</b>", table_cell),
@@ -410,7 +461,6 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('ug_score', 'Passed'), table_cell)
         ])
 
-    # 3. Diploma / ITI / Polytechnic
     if is_valid_input(data.get('dip_course')):
         edu_table_data.append([
             Paragraph(f"<b>Diploma/ITI: {data['dip_course']}</b>", table_cell),
@@ -418,7 +468,6 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('dip_score', 'Passed'), table_cell)
         ])
 
-    # 4. 12th Intermediate
     if is_valid_input(data.get('edu_12th_board')):
         edu_table_data.append([
             Paragraph("<b>12th (Intermediate)</b>", table_cell),
@@ -426,7 +475,6 @@ def generate_full_resume_pdf(data):
             Paragraph(data.get('edu_12th_score', 'Passed'), table_cell)
         ])
 
-    # 5. 10th High School
     if is_valid_input(data.get('edu_10th_board')):
         edu_table_data.append([
             Paragraph("<b>10th (High School)</b>", table_cell),
@@ -468,26 +516,43 @@ def generate_full_resume_pdf(data):
     return pdf_buffer.getvalue()
 
 # ==========================================
-# 9. टेक्स्ट इनपुट्स व अलग-अलग डिटेल्ड स्टेप्स
+# 9. टेक्स्ट इनपुट्स व बैक / रद्द / कैंसिल नेविगेशन
 # ==========================================
+@bot.message_handler(commands=['cancel', 'stop'])
+def handle_cancel_cmd(message):
+    user_sessions.pop(message.chat.id, None)
+    send_task_completion_menu(message.chat.id, "🚫 **प्रक्रिया रद्द कर दी गई है!**\nनीचे से कोई भी विकल्प चुनें 👇")
+
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
     txt = message.text.strip()
     session = user_sessions.setdefault(chat_id, {})
+    mode = session.get('mode')
+    step = session.get('step')
 
+    # 1. पूरा प्रोसेस कैंसिल बटन (Cancel All)
+    if txt in ["❌ पूरा प्रोसेस कैंसिल (Cancel)", "cancel", "stop"]:
+        session.clear()
+        send_task_completion_menu(chat_id, "🚫 **पूरी प्रक्रिया कैंसिल कर दी गई है!**\nमुख्य मेनू से विकल्प चुनें 👇")
+        return
+
+    # 2. मुख्य मेनू बटन्स दबाने पर ऑटो-रीसेट
     if txt == "📐 फोटो / सिग्नेचर रिसाइज़र":
+        session.clear()
         session['mode'] = 'resizer'
-        bot.send_message(chat_id, "📷 कृपया वह **फोटो या सिग्नेचर** भेजें जिसे रिसाइज़ करना है:")
+        bot.send_message(chat_id, "📷 कृपया वह **फोटो या सिग्नेचर** भेजें जिसे रिसाइज़ करना है:", reply_markup=get_step_control_keyboard(can_back=False))
         return
 
     elif txt == "🏷️ फोटो पर नाम व तारीख प्रिंट करें":
+        session.clear()
         session['mode'] = 'name_date'
         session['step'] = 'wait_photo'
-        bot.send_message(chat_id, "📷 कृपया अपनी **पासपोर्ट फोटो** भेजें:")
+        bot.send_message(chat_id, "📷 कृपया अपनी **पासपोर्ट फोटो** भेजें:", reply_markup=get_step_control_keyboard(can_back=False))
         return
 
     elif txt == "🧠 सरकारी एग्जाम डेली क्विज़":
+        session.clear()
         q = quiz_bank[0]
         markup = types.InlineKeyboardMarkup(row_width=1)
         for i, opt in enumerate(q["options"]):
@@ -496,7 +561,7 @@ def handle_text(message):
         return
 
     elif txt in ["📄 प्रोफेशनल रिज्यूम बनाएँ", "📄 प्रोफेशनल रिज्यूम / CV बनाएँ"]:
-        if 'rdata' in session and session['rdata'].get('name'):
+        if 'rdata' in session and session['rdata'].get('name') and mode != 'resume':
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
                 types.InlineKeyboardButton("🔄 पुरानी डिटेल्स से ही PDF फिर बनाएँ / फोटो बदलें", callback_data="cv_reuse"),
@@ -505,21 +570,36 @@ def handle_text(message):
             bot.send_message(chat_id, "💡 आपकी पुरानी डिटेल्स पहले से सेव हैं! आप क्या करना चाहते हैं?", reply_markup=markup)
             return
 
+        session.clear()
         session['mode'] = 'resume'
         session['step'] = 's_name'
+        session['history'] = []
         session['rdata'] = {}
-        bot.send_message(chat_id, "💼 **प्रोफेशनल CV बिल्डर शुरू!**\n\n(नोट: जो डिग्री आपके पास न हो, उस पर बस **NA** लिख दें)\n\n👉 सबसे पहले अपना **पूरा नाम (Full Name)** लिखें:")
+        bot.send_message(chat_id, "💼 **प्रोफेशनल CV बिल्डर शुरू!**\n\n" + STEP_PROMPTS['s_name'], reply_markup=get_step_control_keyboard(can_back=False), parse_mode="Markdown")
         return
 
-    mode = session.get('mode')
-    step = session.get('step')
-
-    # नाम व तारीख फोटो प्रिंटर फ्लो
+    # 3. नाम और डेट फोटो प्रिंटर का नेविगेशन
     if mode == 'name_date':
+        if txt == "🗑️ यह इनपुट रद्द करें":
+            if step == 'wait_name':
+                bot.send_message(chat_id, "✍️ इनपुट खाली कर दिया गया। दोबारा अपना **पूरा नाम** लिखें:", reply_markup=get_step_control_keyboard(can_back=True))
+            elif step == 'wait_date':
+                bot.send_message(chat_id, "📅 इनपुट खाली कर दिया गया। दोबारा फोटो की **तारीख** लिखें:", reply_markup=get_step_control_keyboard(can_back=True))
+            return
+            
+        if txt == "⬅️ पिछला स्टेप (Back)":
+            if step == 'wait_date':
+                session['step'] = 'wait_name'
+                bot.send_message(chat_id, "⬅️ पिछले स्टेप पर आ गए। अपना **पूरा नाम** दोबारा लिखें:", reply_markup=get_step_control_keyboard(can_back=True))
+            elif step == 'wait_name':
+                session['step'] = 'wait_photo'
+                bot.send_message(chat_id, "⬅️ कृपया अपनी **पासपोर्ट फोटो** दोबारा भेजें:", reply_markup=get_step_control_keyboard(can_back=False))
+            return
+
         if step == 'wait_name':
             session['nd_name'] = txt
             session['step'] = 'wait_date'
-            bot.send_message(chat_id, "📅 अब फोटो खींचने की तारीख भेजें (उदा: `10/09/2026`):", parse_mode="Markdown")
+            bot.send_message(chat_id, "📅 अब फोटो खींचने की तारीख भेजें (उदा: `10/09/2026`):", reply_markup=get_step_control_keyboard(can_back=True), parse_mode="Markdown")
         elif step == 'wait_date':
             photo_bytes = session.get('nd_photo')
             if photo_bytes:
@@ -527,149 +607,129 @@ def handle_text(message):
                 out = io.BytesIO(processed)
                 out.name = "Photo_With_Name_Date.jpg"
                 bot.send_document(chat_id, out, caption="✅ **नाम व तारीख वाली फोटो तैयार है!**")
-                session.pop('nd_photo', None)
-                session.pop('mode', None)
-                session.pop('step', None)
+                session.clear()
                 send_task_completion_menu(chat_id, "✅ फोटो तैयार हो चुकी है! अगला विकल्प नीचे से चुनें:")
 
-    # संपूर्ण डायनामिक CV फ्लो (स्टेप-बाय-स्टेप अलग सवाल)
+    # 4. सीवी / रिज्यूम का स्मार्ट नेविगेशन (Back, Clear & Next)
     elif mode == 'resume':
+        history = session.setdefault('history', [])
         r = session.setdefault('rdata', {})
 
-        # बेसिक डिटेल्स
-        if step == 's_name':
+        # केवल यह इनपुट रद्द करें (Clear Current)
+        if txt == "🗑️ यह इनपुट रद्द करें":
+            prompt = STEP_PROMPTS.get(step, "कृपया दोबारा टाइप करें:")
+            can_go_back = len(history) > 0
+            bot.send_message(chat_id, f"🗑️ **वर्तमान इनपुट हटा दिया गया।**\n\n{prompt}", reply_markup=get_step_control_keyboard(can_back=can_go_back, has_no_photo=(step=='s_photo')), parse_mode="Markdown")
+            return
+
+        # पिछला स्टेप (Back Button)
+        if txt == "⬅️ पिछला स्टेप (Back)":
+            if history:
+                prev_step = history.pop()
+                session['step'] = prev_step
+                prompt = STEP_PROMPTS.get(prev_step, "कृपया दर्ज करें:")
+                can_go_back = len(history) > 0
+                bot.send_message(chat_id, f"⬅️ **आप पिछले स्टेप पर आ गए हैं:**\n\n{prompt}", reply_markup=get_step_control_keyboard(can_back=can_go_back, has_no_photo=(prev_step=='s_photo')), parse_mode="Markdown")
+            else:
+                bot.send_message(chat_id, "यह पहला स्टेप है, इससे पीछे नहीं जाया जा सकता।\n\n" + STEP_PROMPTS['s_name'], reply_markup=get_step_control_keyboard(can_back=False))
+            return
+
+        # बिना फोटो वाला CV
+        if txt == "🚫 बिना फोटो के ही CV बनाएँ" and step == 's_photo':
+            r.pop('photo', None)
+            deliver_cv_pdf(chat_id, r)
+            return
+
+        # सामान्य स्टेप प्रोसेसिंग और हिस्ट्री में सेव
+        current_step = step
+        history.append(current_step)
+
+        if current_step == 's_name':
             r['name'] = txt
             session['step'] = 's_phone'
-            bot.send_message(chat_id, "📱 अपना **मोबाइल नंबर** भेजें:")
-
-        elif step == 's_phone':
+        elif current_step == 's_phone':
             r['phone'] = txt
             session['step'] = 's_email'
-            bot.send_message(chat_id, "✉️ अपनी **ईमेल आईडी** भेजें:")
-
-        elif step == 's_email':
+        elif current_step == 's_email':
             r['email'] = txt
             session['step'] = 's_address'
-            bot.send_message(chat_id, "📍 अपना **शहर / पता (Address)** भेजें (उदा: `Morena, MP`):")
-
-        elif step == 's_address':
+        elif current_step == 's_address':
             r['address'] = txt
             session['step'] = 's_father'
-            bot.send_message(chat_id, "👨‍👦 **पिता का नाम (Father's Name)** भेजें:")
-
-        elif step == 's_father':
+        elif current_step == 's_father':
             r['father'] = txt
             session['step'] = 's_dob'
-            bot.send_message(chat_id, "🎂 अपनी **जन्मतिथि (DOB)** भेजें (उदा: `15/08/2002`):")
-
-        # 1. पोस्ट ग्रेजुएशन (PG) - अलग सवाल
-        elif step == 's_dob':
+        elif current_step == 's_dob':
             r['dob'] = txt
             session['step'] = 's_pg_course'
-            bot.send_message(chat_id, "🎓 **पोस्ट ग्रेजुएशन (Master's / PG):**\nडिग्री का नाम लिखें (उदा: `MCA / M.Sc / MA / MBA`)\n*(नहीं किया है तो **NA** लिखें)*:")
-
-        elif step == 's_pg_course':
+        elif current_step == 's_pg_course':
             if is_valid_input(txt):
                 r['pg_course'] = txt
                 session['step'] = 's_pg_board'
-                bot.send_message(chat_id, "🏛️ **PG किस यूनिवर्सिटी / कॉलेज से किया?**\n(उदा: `Jiwaji University`):")
             else:
+                r.pop('pg_course', None)
                 session['step'] = 's_ug_course'
-                bot.send_message(chat_id, "🏛️ **ग्रेजुएशन (Graduation / Degree):**\nडिग्री का नाम लिखें (उदा: `BCA / B.Sc / BA / B.Com`)\n*(नहीं किया है तो **NA** लिखें)*:")
-
-        elif step == 's_pg_board':
+        elif current_step == 's_pg_board':
             r['pg_board'] = txt
             session['step'] = 's_pg_score'
-            bot.send_message(chat_id, "📊 **PG में कितने प्रतिशत (%) बने?**\n(उदा: `75%` या `Passed`):")
-
-        elif step == 's_pg_score':
+        elif current_step == 's_pg_score':
             r['pg_score'] = txt
             session['step'] = 's_ug_course'
-            bot.send_message(chat_id, "🏛️ **ग्रेजुएशन (Graduation / Degree):**\nडिग्री का नाम लिखें (उदा: `BCA / B.Sc / BA / B.Com`)\n*(नहीं किया है तो **NA** लिखें)*:")
-
-        # 2. ग्रेजुएशन (UG) - अलग सवाल
-        elif step == 's_ug_course':
+        elif current_step == 's_ug_course':
             if is_valid_input(txt):
                 r['ug_course'] = txt
                 session['step'] = 's_ug_board'
-                bot.send_message(chat_id, "🏛️ **ग्रेजुएशन किस यूनिवर्सिटी / कॉलेज से किया?**\n(उदा: `Jiwaji University`):")
             else:
+                r.pop('ug_course', None)
                 session['step'] = 's_dip_course'
-                bot.send_message(chat_id, "⚙️ **डिप्लोमा / ITI / पॉलिटेक्निक:**\nकोर्स या ट्रेड का नाम (उदा: `ITI COPA / Poly Mechanical`)\n*(नहीं किया है तो **NA** लिखें)*:")
-
-        elif step == 's_ug_board':
+        elif current_step == 's_ug_board':
             r['ug_board'] = txt
             session['step'] = 's_ug_score'
-            bot.send_message(chat_id, "📊 **ग्रेजुएशन में कितने प्रतिशत (%) बने?**\n(उदा: `72%` या `Passed`):")
-
-        elif step == 's_ug_score':
+        elif current_step == 's_ug_score':
             r['ug_score'] = txt
             session['step'] = 's_dip_course'
-            bot.send_message(chat_id, "⚙️ **डिप्लोमा / ITI / पॉलिटेक्निक:**\nकोर्स या ट्रेड का नाम (उदा: `ITI COPA / Poly Mechanical`)\n*(नहीं किया है तो **NA** लिखें)*:")
-
-        # 3. डिप्लोमा / ITI - अलग सवाल
-        elif step == 's_dip_course':
+        elif current_step == 's_dip_course':
             if is_valid_input(txt):
                 r['dip_course'] = txt
                 session['step'] = 's_dip_board'
-                bot.send_message(chat_id, "🏢 **डिप्लोमा / ITI किस संस्थान या बोर्ड से किया?**\n(उदा: `NCVT / RGPV Bhopal`):")
             else:
+                r.pop('dip_course', None)
                 session['step'] = 's_12th_board'
-                bot.send_message(chat_id, "📚 **12वीं (12th Standard):**\nकिस बोर्ड / स्कूल से किया? (उदा: `MP Board / CBSE`)\n*(अगर लागू न हो तो **NA** लिखें)*:")
-
-        elif step == 's_dip_board':
+        elif current_step == 's_dip_board':
             r['dip_board'] = txt
             session['step'] = 's_dip_score'
-            bot.send_message(chat_id, "📊 **डिप्लोमा / ITI में कितने प्रतिशत (%) बने?**\n(उदा: `80%`):")
-
-        elif step == 's_dip_score':
+        elif current_step == 's_dip_score':
             r['dip_score'] = txt
             session['step'] = 's_12th_board'
-            bot.send_message(chat_id, "📚 **12वीं (12th Standard):**\nकिस बोर्ड / स्कूल से किया? (उदा: `MP Board / CBSE`)\n*(अगर लागू न हो तो **NA** लिखें)*:")
-
-        # 4. 12वीं - अलग सवाल
-        elif step == 's_12th_board':
+        elif current_step == 's_12th_board':
             if is_valid_input(txt):
                 r['edu_12th_board'] = txt
                 session['step'] = 's_12th_score'
-                bot.send_message(chat_id, "📊 **12वीं में कितने प्रतिशत (%) बने?**\n(उदा: `75%`):")
             else:
+                r.pop('edu_12th_board', None)
                 session['step'] = 's_10th_board'
-                bot.send_message(chat_id, "📖 **10वीं (10th Standard):**\nकिस बोर्ड / स्कूल से किया? (उदा: `MP Board / CBSE`):")
-
-        elif step == 's_12th_score':
+        elif current_step == 's_12th_score':
             r['edu_12th_score'] = txt
             session['step'] = 's_10th_board'
-            bot.send_message(chat_id, "📖 **10वीं (10th Standard):**\nकिस बोर्ड / स्कूल से किया? (उदा: `MP Board / CBSE`):")
-
-        # 5. 10वीं - अलग सवाल
-        elif step == 's_10th_board':
+        elif current_step == 's_10th_board':
             r['edu_10th_board'] = txt
             session['step'] = 's_10th_score'
-            bot.send_message(chat_id, "📊 **10वीं में कितने प्रतिशत (%) बने?**\n(उदा: `82%`):")
-
-        elif step == 's_10th_score':
+        elif current_step == 's_10th_score':
             r['edu_10th_score'] = txt
             session['step'] = 's_skills'
-            bot.send_message(chat_id, "⚡ अपनी **स्किल्स (Skills)** लिखें:\n(उदा: `MS Office, Tally Prime, Hindi/English Typing, Communication, Internet`):")
-
-        # स्किल्स, अनुभव और सर्टिफिकेट्स
-        elif step == 's_skills':
+        elif current_step == 's_skills':
             r['skills'] = txt
             session['step'] = 's_exp'
-            bot.send_message(chat_id, "💼 **कार्य अनुभव (Work Experience):**\n(उदा: `1 Year as Data Entry Operator at XYZ` या फ्रेशर हैं तो **Fresher** लिखें):")
-
-        elif step == 's_exp':
+        elif current_step == 's_exp':
             r['exp'] = txt
             session['step'] = 's_certs'
-            bot.send_message(chat_id, "📜 **सर्टिफिकेट्स (Certificates / Extra Courses):**\n(उदा: `CCC, ADCA, CPCT, DCA` या नहीं है तो **NA** लिखें):")
-
-        elif step == 's_certs':
+        elif current_step == 's_certs':
             r['certs'] = txt
             session['step'] = 's_photo'
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(types.InlineKeyboardButton("🚫 बिना फोटो के ही CV बनाएँ", callback_data="cv_no_photo"))
-            bot.send_message(chat_id, "📷 **अंतिम चरण: अपनी पासपोर्ट फोटो भेजें**\n\n(अगर फोटो नहीं लगाना चाहते तो नीचे बटन दबाएँ):", reply_markup=markup)
+
+        next_step = session['step']
+        next_prompt = STEP_PROMPTS.get(next_step, "अगला विवरण दर्ज करें:")
+        bot.send_message(chat_id, next_prompt, reply_markup=get_step_control_keyboard(can_back=True, has_no_photo=(next_step=='s_photo')), parse_mode="Markdown")
 
 # ==========================================
 # 10. फोटो व डॉक्यूमेंट हैंडलर
@@ -708,14 +768,16 @@ def process_cv_actions(call):
         session['mode'] = 'resume'
         session['step'] = 's_photo'
         bot.answer_callback_query(call.id)
-        bot.send_message(chat_id, "📷 **बस अपनी नई फोटो भेज दीजिए**, आपकी सारी डिटेल्स सेव हैं! नया CV तुरंत बन जाएगा:")
+        bot.send_message(chat_id, "📷 **बस अपनी नई फोटो भेज दीजिए**, आपकी सारी डिटेल्स सेव हैं! नया CV तुरंत बन जाएगा:", reply_markup=get_step_control_keyboard(can_back=True, has_no_photo=True))
 
     elif call.data == "cv_new_start":
+        session.clear()
         session['mode'] = 'resume'
         session['step'] = 's_name'
+        session['history'] = []
         session['rdata'] = {}
         bot.answer_callback_query(call.id)
-        bot.send_message(chat_id, "💼 **नया CV शुरू!**\n\n👉 अपना **पूरा नाम (Full Name)** लिखकर भेजें:")
+        bot.send_message(chat_id, "💼 **नया CV शुरू!**\n\n" + STEP_PROMPTS['s_name'], reply_markup=get_step_control_keyboard(can_back=False), parse_mode="Markdown")
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_photos_and_docs(message):
@@ -731,7 +793,7 @@ def handle_photos_and_docs(message):
     if mode == 'name_date' and step == 'wait_photo':
         session['nd_photo'] = downloaded
         session['step'] = 'wait_name'
-        bot.send_message(chat_id, "✍️ अपना **पूरा नाम** लिखें जो फोटो पर प्रिंट करना है:")
+        bot.send_message(chat_id, "✍️ अपना **पूरा नाम** लिखें जो फोटो पर प्रिंट करना है:", reply_markup=get_step_control_keyboard(can_back=True))
 
     elif mode == 'resume' and (step == 's_photo' or 'rdata' in session):
         rdata = session.setdefault('rdata', {})
