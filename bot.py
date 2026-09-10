@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -126,8 +126,8 @@ def send_welcome(message):
         "👋 **ऑल-इन-वन स्टूडेंट सुपर-टूल में आपका स्वागत है!** 🇮🇳\n\n"
         "यहाँ आपको सरकारी और प्राइवेट करियर की हर सुविधा मिलती है:\n"
         "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
-        "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें\n"
-        "• 📄 PG, UG, Diploma, Experience युक्त मॉडर्न 2-कॉलम CV PDF\n"
+        "• 🏷️ फोटो पर नाम व तारीख प्रिंट करें\n"
+        "• 📄 स्टेप-बाय-स्टेप आधुनिक 2-कॉलम CV मेकर\n"
         "• 🧠 डेली परीक्षा टेस्ट क्विज़\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
@@ -258,7 +258,6 @@ def generate_full_resume_pdf(data):
     story = []
     styles = getSampleStyleSheet()
 
-    # टाइपोग्राफी
     name_style = ParagraphStyle('Name', fontName='Helvetica-Bold', fontSize=22, leading=26, textColor=colors.HexColor("#0F172A"))
     sub_title_style = ParagraphStyle('Sub', fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor("#0284C7"))
     
@@ -271,7 +270,7 @@ def generate_full_resume_pdf(data):
     table_head = ParagraphStyle('THead', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=colors.white)
 
     # -------------------------------------------------------------
-    # बायां कॉलम (Dark Navy Modern Sidebar)
+    # बायां कॉलम (Dark Navy Sidebar)
     # -------------------------------------------------------------
     left_elements = []
     
@@ -284,28 +283,24 @@ def generate_full_resume_pdf(data):
         except:
             pass
 
-    # संपर्क
     left_elements.append(Paragraph("CONTACT INFO", sec_heading_left))
     left_elements.append(Paragraph(f"<b>Phone:</b> {data.get('phone', 'N/A')}", left_body))
     left_elements.append(Paragraph(f"<b>Email:</b> {data.get('email', 'N/A')}", left_body))
     left_elements.append(Paragraph(f"<b>Address:</b> {data.get('address', 'India')}", left_body))
     left_elements.append(Spacer(1, 10))
 
-    # स्किल्स
     left_elements.append(Paragraph("KEY SKILLS", sec_heading_left))
     raw_skills = data.get('skills', 'Computer Basic, MS Office, Communication')
     for s in [x.strip() for x in raw_skills.replace(',', '\n').split('\n') if x.strip()]:
         left_elements.append(Paragraph(f"• {s}", left_body))
     left_elements.append(Spacer(1, 10))
 
-    # अतिरिक्त सर्टिफिकेट्स (यदि हैं)
     if is_valid_input(data.get('certs')):
         left_elements.append(Paragraph("CERTIFICATIONS", sec_heading_left))
         for c in [x.strip() for x in data['certs'].replace(',', '\n').split('\n') if x.strip()]:
             left_elements.append(Paragraph(f"• {c}", left_body))
         left_elements.append(Spacer(1, 10))
 
-    # व्यक्तिगत विवरण
     left_elements.append(Paragraph("PERSONAL DETAILS", sec_heading_left))
     left_elements.append(Paragraph(f"<b>Father:</b> {data.get('father', 'N/A')}", left_body))
     left_elements.append(Paragraph(f"<b>DOB:</b> {data.get('dob', 'N/A')}", left_body))
@@ -317,13 +312,11 @@ def generate_full_resume_pdf(data):
     # -------------------------------------------------------------
     right_elements = []
     
-    # नाम व पद
     cand_name = data.get('name', 'CANDIDATE NAME').upper()
     right_elements.append(Paragraph(cand_name, name_style))
     right_elements.append(Paragraph("CURRICULUM VITAE / PROFESSIONAL RESUME", sub_title_style))
     right_elements.append(Spacer(1, 8))
 
-    # कैरियर उद्देश्य
     right_elements.append(Paragraph("PROFESSIONAL SUMMARY", sec_heading_right))
     summary_text = (
         "Motivated and detail-oriented candidate seeking an opportunity to leverage academic foundation, "
@@ -332,78 +325,76 @@ def generate_full_resume_pdf(data):
     right_elements.append(Paragraph(summary_text, right_body))
     right_elements.append(Spacer(1, 10))
 
-    # वर्क एक्सपीरियंस (यदि फ्रेशर नहीं है)
     if is_valid_input(data.get('exp')):
         right_elements.append(Paragraph("WORK EXPERIENCE", sec_heading_right))
         right_elements.append(Paragraph(f"• {data['exp']}", right_body))
         right_elements.append(Spacer(1, 10))
 
-    # शैक्षणिक योग्यता टेबल (डायनामिक: केवल वही जो उपलब्ध हैं)
+    # योग्यता टेबल (साफ़ 3 कॉलम: Qualification, Board/Univ, Percentage)
     edu_table_data = [
-        [Paragraph("Course / Qualification", table_head), Paragraph("Board / University / Institute", table_head), Paragraph("Score / Status", table_head)]
+        [Paragraph("Course / Qualification", table_head), Paragraph("Board / University / Institute", table_head), Paragraph("Percentage / Marks", table_head)]
     ]
 
-    # 1. Post Graduation
+    # 1. PG
     if is_valid_input(data.get('pg_course')):
         edu_table_data.append([
             Paragraph(f"<b>PG: {data['pg_course']}</b>", table_cell),
-            Paragraph(data.get('pg_board', 'University'), table_cell),
-            Paragraph(data.get('pg_score', 'Passed'), table_cell)
+            Paragraph(data.get('pg_univ', '-'), table_cell),
+            Paragraph(data.get('pg_pct', '-'), table_cell)
         ])
 
-    # 2. Graduation (UG)
-    if is_valid_input(data.get('ug_course')):
+    # 2. Graduation
+    if is_valid_input(data.get('grad_course')):
         edu_table_data.append([
-            Paragraph(f"<b>UG: {data['ug_course']}</b>", table_cell),
-            Paragraph(data.get('ug_board', 'University'), table_cell),
-            Paragraph(data.get('ug_score', 'Passed'), table_cell)
+            Paragraph(f"<b>Grad: {data['grad_course']}</b>", table_cell),
+            Paragraph(data.get('grad_univ', '-'), table_cell),
+            Paragraph(data.get('grad_pct', '-'), table_cell)
         ])
 
-    # 3. Diploma / ITI / Poly
+    # 3. Diploma / ITI
     if is_valid_input(data.get('dip_course')):
         edu_table_data.append([
-            Paragraph(f"<b>Diploma/ITI: {data['dip_course']}</b>", table_cell),
-            Paragraph(data.get('dip_board', 'Institute'), table_cell),
-            Paragraph(data.get('dip_score', 'Passed'), table_cell)
+            Paragraph(f"<b>Diploma: {data['dip_course']}</b>", table_cell),
+            Paragraph(data.get('dip_univ', '-'), table_cell),
+            Paragraph(data.get('dip_pct', '-'), table_cell)
         ])
 
     # 4. 12th
     if is_valid_input(data.get('edu_12th_board')):
         edu_table_data.append([
-            Paragraph("<b>12th (Intermediate)</b>", table_cell),
-            Paragraph(data.get('edu_12th_board', 'State Board'), table_cell),
-            Paragraph(data.get('edu_12th_score', 'Passed'), table_cell)
+            Paragraph("<b>12th Standard</b>", table_cell),
+            Paragraph(data.get('edu_12th_board', '-'), table_cell),
+            Paragraph(data.get('edu_12th_pct', '-'), table_cell)
         ])
 
     # 5. 10th
     if is_valid_input(data.get('edu_10th_board')):
         edu_table_data.append([
-            Paragraph("<b>10th (High School)</b>", table_cell),
-            Paragraph(data.get('edu_10th_board', 'State Board'), table_cell),
-            Paragraph(data.get('edu_10th_score', 'Passed'), table_cell)
+            Paragraph("<b>10th Standard</b>", table_cell),
+            Paragraph(data.get('edu_10th_board', '-'), table_cell),
+            Paragraph(data.get('edu_10th_pct', '-'), table_cell)
         ])
 
     if len(edu_table_data) > 1:
         right_elements.append(Paragraph("ACADEMIC QUALIFICATIONS", sec_heading_right))
-        edu_table = Table(edu_table_data, colWidths=[120, 165, 95])
+        edu_table = Table(edu_table_data, colWidths=[125, 175, 85])
         edu_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1E293B")),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
         ]))
         right_elements.append(edu_table)
         right_elements.append(Spacer(1, 10))
 
-    # डिक्लेरेशन
     right_elements.append(Paragraph("DECLARATION", sec_heading_right))
     right_elements.append(Paragraph("I solemnly declare that the details furnished above are true and correct to the best of my knowledge and belief.", right_body))
 
     # -------------------------------------------------------------
-    # 2-कॉलम मास्टर टेबल (185px Dark Sidebar + 395px Main Content)
+    # 2-कॉलम मास्टर टेबल
     # -------------------------------------------------------------
     master_table = Table([[left_elements, right_elements]], colWidths=[185, 395])
     master_table.setStyle(TableStyle([
@@ -452,7 +443,7 @@ def handle_text(message):
         session['mode'] = 'resume'
         session['step'] = 's_name'
         session['rdata'] = {}
-        bot.send_message(chat_id, "💼 **कंप्लीट CV / रिज्यूम बिल्डर शुरू!**\n\n(नोट: यदि कोई योग्यता या अनुभव आपके पास नहीं है, तो बेझिझक **NA** या **No** लिख दें, वह सीवी से अपने आप हट जाएगा।)\n\n👉 सबसे पहले अपना **पूरा नाम (Full Name)** लिखें:")
+        bot.send_message(chat_id, "💼 **कंप्लीट CV / रिज्यूम बिल्डर शुरू!**\n\n(नोट: जो डिग्री आपके पास नहीं है, उसमें बेझिझक **NA** या **No** लिख दें, वह सीवी से खुद हट जाएगी।)\n\n👉 सबसे पहले अपना **पूरा नाम (Full Name)** लिखकर भेजें:")
         return
 
     mode = session.get('mode')
@@ -473,10 +464,11 @@ def handle_text(message):
                 bot.send_document(chat_id, out, caption="✅ **नाम व तारीख वाली फोटो तैयार है!**")
                 session.clear()
 
-    # संपूर्ण डायनामिक CV फ्लो
+    # संपूर्ण डायनामिक CV फ्लो (स्टेप-बाय-स्टेप अलग प्रश्न)
     elif mode == 'resume':
         r = session.get('rdata', {})
 
+        # बेसिक प्रोफाइल
         if step == 's_name':
             r['name'] = txt
             session['step'] = 's_phone'
@@ -502,63 +494,106 @@ def handle_text(message):
             session['step'] = 's_dob'
             bot.send_message(chat_id, "🎂 अपनी **जन्मतिथि (DOB)** भेजें (उदा: `15/08/2002`):")
 
+        # 1. Post Graduation (PG)
         elif step == 's_dob':
             r['dob'] = txt
-            session['step'] = 's_pg'
-            bot.send_message(chat_id, "🎓 **पोस्ट ग्रेजुएशन (Master's / PG):**\nडिग्री, कॉलेज, प्रतिशत लिखें (उदा: `MCA, Jiwaji Univ, 78%`)\n*(नहीं किया है तो **NA** लिखें)*:")
+            session['step'] = 's_pg_course'
+            bot.send_message(chat_id, "🎓 **पोस्ट ग्रेजुएशन (PG / Master's):**\nडिग्री का नाम लिखें (उदा: `MCA, M.Com, M.Sc`)\n*(नहीं किया है तो **NA** लिखें)*:")
 
-        elif step == 's_pg':
+        elif step == 's_pg_course':
+            r['pg_course'] = txt
             if is_valid_input(txt):
-                parts = [p.strip() for p in txt.split(',')]
-                r['pg_course'] = parts[0]
-                r['pg_board'] = parts[1] if len(parts) > 1 else "University"
-                r['pg_score'] = parts[2] if len(parts) > 2 else "Passed"
-            session['step'] = 's_ug'
-            bot.send_message(chat_id, "🏛️ **ग्रेजुएशन (Graduation / Degree):**\nकोर्स, यूनिवर्सिटी, प्रतिशत लिखें (उदा: `B.Sc, Jiwaji Univ, 72%`)\n*(नहीं किया है तो **NA** लिखें)*:")
+                session['step'] = 's_pg_univ'
+                bot.send_message(chat_id, "🏛️ पोस्ट ग्रेजुएशन की **यूनिवर्सिटी / कॉलेज** का नाम लिखें:")
+            else:
+                session['step'] = 's_grad_course'
+                bot.send_message(chat_id, "🏛️ **ग्रेजुएशन (Degree / Bachelor):**\nकोर्स का नाम लिखें (उदा: `BCA, B.Sc, B.Com, B.Tech`)\n*(नहीं किया है तो **NA** लिखें)*:")
 
-        elif step == 's_ug':
-            if is_valid_input(txt):
-                parts = [p.strip() for p in txt.split(',')]
-                r['ug_course'] = parts[0]
-                r['ug_board'] = parts[1] if len(parts) > 1 else "University"
-                r['ug_score'] = parts[2] if len(parts) > 2 else "Passed"
-            session['step'] = 's_dip'
-            bot.send_message(chat_id, "⚙️ **डिप्लोमा / ITI / पॉलिटेक्निक:**\nट्रेड, इंस्टीट्यूट, प्रतिशत (उदा: `ITI COPA, NCVT, 82%`)\n*(नहीं किया है तो **NA** लिखें)*:")
+        elif step == 's_pg_univ':
+            r['pg_univ'] = txt
+            session['step'] = 's_pg_pct'
+            bot.send_message(chat_id, "📊 पोस्ट ग्रेजुएशन का **प्रतिशत (Percentage / CGPA)** लिखें (उदा: `75%`):")
 
-        elif step == 's_dip':
-            if is_valid_input(txt):
-                parts = [p.strip() for p in txt.split(',')]
-                r['dip_course'] = parts[0]
-                r['dip_board'] = parts[1] if len(parts) > 1 else "Institute"
-                r['dip_score'] = parts[2] if len(parts) > 2 else "Passed"
-            session['step'] = 's_12th'
-            bot.send_message(chat_id, "📚 **12वीं (12th Standard):**\nबोर्ड और प्रतिशत लिखें (उदा: `MP Board, 75%`)\n*(अगर 10वीं के सीधे बाद डिप्लोमा किया है तो **NA** लिख सकते हैं)*:")
+        elif step == 's_pg_pct':
+            r['pg_pct'] = txt
+            session['step'] = 's_grad_course'
+            bot.send_message(chat_id, "🏛️ **ग्रेजुएशन (Degree / Bachelor):**\nकोर्स का नाम लिखें (उदा: `BCA, B.Sc, B.Com, B.Tech`)\n*(नहीं किया है तो **NA** लिखें)*:")
 
-        elif step == 's_12th':
+        # 2. Graduation (UG)
+        elif step == 's_grad_course':
+            r['grad_course'] = txt
             if is_valid_input(txt):
-                parts = [p.strip() for p in txt.split(',')]
-                r['edu_12th_board'] = parts[0]
-                r['edu_12th_score'] = parts[1] if len(parts) > 1 else "Passed"
-            session['step'] = 's_10th'
-            bot.send_message(chat_id, "📖 **10वीं (10th Standard):**\nबोर्ड और प्रतिशत लिखें (उदा: `MP Board, 80%`):")
+                session['step'] = 's_grad_univ'
+                bot.send_message(chat_id, "🏛️ ग्रेजुएशन की **यूनिवर्सिटी / कॉलेज** का नाम लिखें:")
+            else:
+                session['step'] = 's_dip_course'
+                bot.send_message(chat_id, "⚙️ **डिप्लोमा / ITI / पॉलिटेक्निक:**\nकोर्स/ट्रेड का नाम लिखें (उदा: `ITI COPA, Poly Mechanical`)\n*(नहीं किया है तो **NA** लिखें)*:")
 
-        elif step == 's_10th':
+        elif step == 's_grad_univ':
+            r['grad_univ'] = txt
+            session['step'] = 's_grad_pct'
+            bot.send_message(chat_id, "📊 ग्रेजुएशन का **प्रतिशत (Percentage / CGPA)** लिखें (उदा: `72%`):")
+
+        elif step == 's_grad_pct':
+            r['grad_pct'] = txt
+            session['step'] = 's_dip_course'
+            bot.send_message(chat_id, "⚙️ **डिप्लोमा / ITI / पॉलिटेक्निक:**\nकोर्स/ट्रेड का नाम लिखें (उदा: `ITI COPA, Poly Mechanical`)\n*(नहीं किया है तो **NA** लिखें)*:")
+
+        # 3. Diploma / ITI
+        elif step == 's_dip_course':
+            r['dip_course'] = txt
             if is_valid_input(txt):
-                parts = [p.strip() for p in txt.split(',')]
-                r['edu_10th_board'] = parts[0]
-                r['edu_10th_score'] = parts[1] if len(parts) > 1 else "Passed"
+                session['step'] = 's_dip_univ'
+                bot.send_message(chat_id, "🏛️ डिप्लोमा/ITI के **संस्थान / बोर्ड** का नाम लिखें:")
+            else:
+                session['step'] = 's_12th_board'
+                bot.send_message(chat_id, "📚 **12वीं (12th Standard):**\nबोर्ड का नाम लिखें (उदा: `MP Board, CBSE`)\n*(अगर नहीं किया है तो **NA** लिखें)*:")
+
+        elif step == 's_dip_univ':
+            r['dip_univ'] = txt
+            session['step'] = 's_dip_pct'
+            bot.send_message(chat_id, "📊 डिप्लोमा/ITI का **प्रतिशत (Percentage)** लिखें (उदा: `80%`):")
+
+        elif step == 's_dip_pct':
+            r['dip_pct'] = txt
+            session['step'] = 's_12th_board'
+            bot.send_message(chat_id, "📚 **12वीं (12th Standard):**\nबोर्ड का नाम लिखें (उदा: `MP Board, CBSE`)\n*(अगर नहीं किया है तो **NA** लिखें)*:")
+
+        # 4. 12th
+        elif step == 's_12th_board':
+            r['edu_12th_board'] = txt
+            if is_valid_input(txt):
+                session['step'] = 's_12th_pct'
+                bot.send_message(chat_id, "📊 12वीं का **प्रतिशत (Percentage)** लिखें (उदा: `76%`):")
+            else:
+                session['step'] = 's_10th_board'
+                bot.send_message(chat_id, "📖 **10वीं (10th Standard):**\nबोर्ड का नाम लिखें (उदा: `MP Board, CBSE`):")
+
+        elif step == 's_12th_pct':
+            r['edu_12th_pct'] = txt
+            session['step'] = 's_10th_board'
+            bot.send_message(chat_id, "📖 **10वीं (10th Standard):**\nबोर्ड का नाम लिखें (उदा: `MP Board, CBSE`):")
+
+        # 5. 10th
+        elif step == 's_10th_board':
+            r['edu_10th_board'] = txt
+            session['step'] = 's_10th_pct'
+            bot.send_message(chat_id, "📊 10वीं का **प्रतिशत (Percentage)** लिखें (उदा: `82%`):")
+
+        elif step == 's_10th_pct':
+            r['edu_10th_pct'] = txt
             session['step'] = 's_skills'
-            bot.send_message(chat_id, "⚡ अपनी **स्किल्स (Skills)** लिखें:\n(उदा: `MS Office, Tally Prime, Hindi/English Typing, Communication, Data Entry`):")
+            bot.send_message(chat_id, "⚡ अपनी **स्किल्स (Skills)** लिखें:\n(उदा: `MS Office, Tally Prime, Hindi Typing 35 WPM, Computer Hardware`):")
 
         elif step == 's_skills':
             r['skills'] = txt
             session['step'] = 's_exp'
-            bot.send_message(chat_id, "💼 **कार्य अनुभव (Work Experience):**\nकंपनी, पद, साल लिखें (उदा: `2 Years as Computer Operator at XYZ Firm`)\n*(फ्रेशर हैं तो **Fresher** या **NA** लिखें)*:")
+            bot.send_message(chat_id, "💼 **कार्य अनुभव (Work Experience):**\n(उदा: `1 Year Experience as Computer Operator at ABC Center`)\n*(यदि फ्रेशर हैं तो **Fresher** या **NA** लिखें)*:")
 
         elif step == 's_exp':
             r['exp'] = txt
             session['step'] = 's_certs'
-            bot.send_message(chat_id, "📜 **अन्य कोर्सेज / सर्टिफिकेट्स (Certifications):**\n(उदा: `CCC, ADCA, CPCT Qualified`)\n*(नहीं है तो **NA** लिखें)*:")
+            bot.send_message(chat_id, "📜 **अन्य सर्टिफिकेट्स / कोर्स (Certifications):**\n(उदा: `CCC Certified, CPCT Qualified`)\n*(नहीं है तो **NA** लिखें)*:")
 
         elif step == 's_certs':
             r['certs'] = txt
@@ -600,7 +635,6 @@ def handle_photos_and_docs(message):
             bot.edit_message_text(f"❌ CV जनरेशन में त्रुटि: {e}", chat_id, msg.message_id)
 
     else:
-        # डिफ़ॉल्ट: फोटो रिसाइज़र मोड
         session['temp_photo'] = downloaded
         markup = types.InlineKeyboardMarkup(row_width=2)
         b1 = types.InlineKeyboardButton("📷 पासपोर्ट फोटो (20-50 KB)", callback_data="res_photo")
