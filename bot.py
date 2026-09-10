@@ -246,86 +246,138 @@ def process_quiz_answer(call):
         bot.answer_callback_query(call.id, f"❌ गलत उत्तर!\nसही उत्तर है: {correct_ans}", show_alert=True)
 
 # ==========================================
-# 8. फीचर 4: फोटो वाला प्रोफेशनल रिज्यूम बिल्डर
+# 8. फीचर 4: मॉडर्न टू-कॉलम प्रोफेशनल रिज्यूम बिल्डर
 # ==========================================
 def generate_resume_pdf(data):
     pdf_buffer = io.BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    # A4 साइज, मिनिमल मार्जिन
+    doc = SimpleDocTemplate(
+        pdf_buffer, 
+        pagesize=letter, 
+        rightMargin=18, 
+        leftMargin=18, 
+        topMargin=18, 
+        bottomMargin=18
+    )
     story = []
     styles = getSampleStyleSheet()
 
-    # कस्टम स्टाइल्स
-    name_style = ParagraphStyle('NameStyle', parent=styles['Normal'], fontSize=20, leading=24, fontName='Helvetica-Bold', textColor=colors.HexColor("#1A365D"))
-    contact_style = ParagraphStyle('ContactStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#4A5568"))
-    heading_style = ParagraphStyle('HeadingStyle', parent=styles['Normal'], fontSize=13, leading=16, fontName='Helvetica-Bold', textColor=colors.HexColor("#2B6CB0"))
-    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor("#2D3748"))
+    # प्रोफेशनल टाइपोग्राफी (100% ग्लिच-फ्री)
+    name_style = ParagraphStyle('Name', fontName='Helvetica-Bold', fontSize=22, leading=26, textColor=colors.HexColor("#0F172A"))
+    sub_title_style = ParagraphStyle('Sub', fontName='Helvetica', fontSize=11, leading=14, textColor=colors.HexColor("#0284C7"))
+    
+    sec_heading_right = ParagraphStyle('SecRight', fontName='Helvetica-Bold', fontSize=12, leading=16, textColor=colors.HexColor("#0F172A"), spaceAfter=6)
+    sec_heading_left = ParagraphStyle('SecLeft', fontName='Helvetica-Bold', fontSize=11, leading=15, textColor=colors.white, spaceAfter=6)
+    
+    left_body = ParagraphStyle('LeftBody', fontName='Helvetica', fontSize=9, leading=13, textColor=colors.HexColor("#E2E8F0"))
+    right_body = ParagraphStyle('RightBody', fontName='Helvetica', fontSize=9, leading=13, textColor=colors.HexColor("#334155"))
+    table_cell = ParagraphStyle('TCell', fontName='Helvetica', fontSize=8, leading=11, textColor=colors.HexColor("#1E293B"))
+    table_head = ParagraphStyle('THead', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=colors.white)
 
-    # हेडर: फोटो + नाम व संपर्क
-    left_info = [
-        Paragraph(data.get('name', 'N/A'), name_style),
-        Spacer(1, 4),
-        Paragraph(f"📞 {data.get('phone', 'N/A')}  |  ✉️ {data.get('email', 'N/A')}", contact_style),
-        Paragraph(f"📍 {data.get('address', 'India')}", contact_style)
+    # -------------------------------------------------------------
+    # बायां कॉलम (Dark Navy Sidebar: Photo + Contact + Skills)
+    # -------------------------------------------------------------
+    left_elements = []
+    
+    # पासपोर्ट फोटो
+    if 'photo' in data:
+        try:
+            p_stream = io.BytesIO(data['photo'])
+            img = RLImage(p_stream, width=95, height=115)
+            left_elements.append(img)
+            left_elements.append(Spacer(1, 15))
+        except:
+            pass
+
+    # संपर्क सूत्र (Contact)
+    left_elements.append(Paragraph("CONTACT INFO", sec_heading_left))
+    left_elements.append(Paragraph(f"<b>Phone:</b><br/>{data.get('phone', 'N/A')}", left_body))
+    left_elements.append(Spacer(1, 6))
+    left_elements.append(Paragraph(f"<b>Email:</b><br/>{data.get('email', 'N/A')}", left_body))
+    left_elements.append(Spacer(1, 6))
+    left_elements.append(Paragraph("<b>Location:</b><br/>India", left_body))
+    left_elements.append(Spacer(1, 15))
+
+    # तकनीकी एवं अन्य कौशल (Skills)
+    left_elements.append(Paragraph("KEY SKILLS", sec_heading_left))
+    raw_skills = data.get('skills', 'Basic Computer, MS Office, Typing')
+    for s in [x.strip() for x in raw_skills.replace(',', '\n').split('\n') if x.strip()]:
+        left_elements.append(Paragraph(f"• {s}", left_body))
+    left_elements.append(Spacer(1, 15))
+
+    # व्यक्तिगत विवरण (Personal Details)
+    left_elements.append(Paragraph("PERSONAL DETAILS", sec_heading_left))
+    left_elements.append(Paragraph(f"<b>Father:</b> {data.get('father', 'N/A')}", left_body))
+    left_elements.append(Spacer(1, 4))
+    left_elements.append(Paragraph("<b>Languages:</b><br/>Hindi, English", left_body))
+    left_elements.append(Spacer(1, 4))
+    left_elements.append(Paragraph("<b>Nationality:</b> Indian", left_body))
+
+    # -------------------------------------------------------------
+    # दायां कॉलम (Main Content: Name + Summary + Education)
+    # -------------------------------------------------------------
+    right_elements = []
+    
+    # हेडर
+    cand_name = data.get('name', 'CANDIDATE NAME').upper()
+    right_elements.append(Paragraph(cand_name, name_style))
+    right_elements.append(Paragraph("Job Applicant & Professional Resume", sub_title_style))
+    right_elements.append(Spacer(1, 12))
+
+    # कैरियर ऑब्जेक्टिव / समरी
+    right_elements.append(Paragraph("PROFESSIONAL SUMMARY", sec_heading_right))
+    summary_text = (
+        "Enthusiastic and detail-oriented individual aiming to contribute effectively to organizational "
+        "goals while leveraging technical and analytical skills in a dynamic work environment."
+    )
+    right_elements.append(Paragraph(summary_text, right_body))
+    right_elements.append(Spacer(1, 15))
+
+    # शैक्षणिक योग्यता टेबल
+    right_elements.append(Paragraph("ACADEMIC QUALIFICATIONS", sec_heading_right))
+    edu_table_data = [
+        [Paragraph("Course / Degree", table_head), Paragraph("Board / University", table_head), Paragraph("Score / Status", table_head)],
+        [Paragraph("<b>10th Standard</b>", table_cell), Paragraph(data.get('edu_10th_board', 'State Board'), table_cell), Paragraph(data.get('edu_10th_marks', 'Passed'), table_cell)],
+        [Paragraph("<b>12th Standard</b>", table_cell), Paragraph(data.get('edu_12th_board', 'State Board'), table_cell), Paragraph(data.get('edu_12th_marks', 'Passed'), table_cell)],
+        [Paragraph("<b>Graduation / Diploma</b>", table_cell), Paragraph(data.get('edu_grad_board', 'University'), table_cell), Paragraph(data.get('edu_grad_marks', 'Passed'), table_cell)]
     ]
     
-    photo_cell = []
-    if 'photo' in data:
-        p_stream = io.BytesIO(data['photo'])
-        photo_img = RLImage(p_stream, width=80, height=100)
-        photo_cell.append(photo_img)
-    else:
-        photo_cell.append(Paragraph("", body_style))
-
-    header_table = Table([[left_info, photo_cell]], colWidths=[440, 100])
-    header_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('ALIGN', (1,0), (1,0), 'RIGHT')
+    edu_table = Table(edu_table_data, colWidths=[120, 160, 90])
+    edu_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1E293B")),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
     ]))
-    story.append(header_table)
-    story.append(Spacer(1, 15))
+    right_elements.append(edu_table)
+    right_elements.append(Spacer(1, 15))
 
-    # कैरियर ऑब्जेक्टिव
-    story.append(Paragraph("कैरियर उद्देश्य (CAREER OBJECTIVE)", heading_style))
-    story.append(Paragraph("एक अनुशासित और समर्पित वातावरण में कार्य करते हुए संगठन के लक्ष्यों में योगदान देना एवं निरंतर नई तकनीक व ज्ञान अर्जित करना।", body_style))
-    story.append(Spacer(1, 12))
+    # डिक्लेरेशन (Self Declaration)
+    right_elements.append(Paragraph("DECLARATION", sec_heading_right))
+    dec_text = "I hereby confirm that the information provided above is true and authentic to the best of my knowledge."
+    right_elements.append(Paragraph(dec_text, right_body))
 
-    # शैक्षणिक योग्यता
-    story.append(Paragraph("शैक्षणिक योग्यता (EDUCATION)", heading_style))
-    edu_data = [
-        [Paragraph("<b>कोर्स / डिग्री</b>", body_style), Paragraph("<b>बोर्ड / यूनिवर्सिटी</b>", body_style), Paragraph("<b>प्रतिशत / वर्ष</b>", body_style)],
-        [Paragraph("10th Standard", body_style), Paragraph(data.get('edu_10th_board', 'State Board'), body_style), Paragraph(data.get('edu_10th_marks', '-'), body_style)],
-        [Paragraph("12th Standard", body_style), Paragraph(data.get('edu_12th_board', 'State Board'), body_style), Paragraph(data.get('edu_12th_marks', '-'), body_style)],
-        [Paragraph("Graduation / Diploma", body_style), Paragraph(data.get('edu_grad_board', 'University'), body_style), Paragraph(data.get('edu_grad_marks', '-'), body_style)]
-    ]
-    t_edu = Table(edu_data, colWidths=[180, 200, 160])
-    t_edu.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#E2E8F0")),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E0")),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-        ('TOPPADDING', (0,0), (-1,-1), 5)
+    # -------------------------------------------------------------
+    # 2-कॉलम मास्टर फ्रेम (35% Dark Navy Sidebar | 65% Main Content)
+    # -------------------------------------------------------------
+    master_table = Table([[left_elements, right_elements]], colWidths=[185, 390])
+    master_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#0F172A")),  # प्रीमियम डार्क स्लेट साइडबार
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (0, -1), 14),
+        ('RIGHTPADDING', (0, 0), (0, -1), 14),
+        ('TOPPADDING', (0, 0), (-1, -1), 16),
+        ('LEFTPADDING', (1, 0), (1, -1), 18),
+        ('RIGHTPADDING', (1, 0), (1, -1), 10),
     ]))
-    story.append(t_edu)
-    story.append(Spacer(1, 12))
-
-    # आधुनिक और इन-डिमांड स्किल्स
-    story.append(Paragraph("कौशल व क्षमताएं (KEY SKILLS)", heading_style))
-    skills_text = data.get('skills', 'Computer Basic, MS Office, Typing (Hindi & English), Data Management')
-    story.append(Paragraph(f"• {skills_text}", body_style))
-    story.append(Spacer(1, 12))
-
-    # व्यक्तिगत विवरण
-    story.append(Paragraph("व्यक्तिगत विवरण (PERSONAL DETAILS)", heading_style))
-    p_info = (
-        f"<b>पिता का नाम:</b> {data.get('father', 'N/A')}<br/>"
-        f"<b>भाषा ज्ञान:</b> हिंदी, अंग्रेज़ी<br/>"
-        f"<b>राष्ट्रीयता:</b> भारतीय"
-    )
-    story.append(Paragraph(p_info, body_style))
-
+    
+    story.append(master_table)
     doc.build(story)
     return pdf_buffer.getvalue()
-
 # ==========================================
 # 9. टेक्स्ट व मैसेज हैंडलर
 # ==========================================
