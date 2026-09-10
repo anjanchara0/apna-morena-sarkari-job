@@ -1,6 +1,8 @@
+
 import os
 import io
 import time
+import html
 import random
 import threading
 import telebot
@@ -41,11 +43,12 @@ def webhook_status():
     return "✅ Master Student Platform Engine Live 24/7!", 200
 
 # ==========================================
-# 3. फोर्स सब्सक्रिप्शन गेटवे (100% लाइव सर्वर चेक)
+# 3. स्ट्रिक्ट लाइव फ़ोर्स सब्सक्रिप्शन (Real-time Live Server Check)
 # ==========================================
 def is_user_subscribed(chat_id, user_id):
     try:
         member = bot.get_chat_member(CHANNEL_ID, user_id)
+        # केवल तभी True जब यूजर सच में चैनल में प्रेजेंट हो
         if member.status in ['member', 'administrator', 'creator']:
             return True
         return False
@@ -61,7 +64,7 @@ def send_join_channel_prompt(chat_id):
     
     text = (
         "⚠️ **चैनल सदस्यता अनिवार्य है!**\n\n"
-        "सभी सरकारी टूल्स (फोटो रिसाइज़र, नाम-डेट स्टैम्प, CV बिल्डर, क्विज़) का निःशुल्क उपयोग करने के लिए हमारे टेलीग्राम चैनल से जुड़ना अनिवार्य है।\n\n"
+        "सभी सरकारी टूल्स (फोटो रिसाइज़र, नाम-डेट स्टैम्प, CV बिल्डर, अनलिमिटेड क्विज़) का उपयोग करने के लिए हमारे चैनल से जुड़े रहना अनिवार्य है।\n\n"
         "👉 नीचे बटन दबाकर चैनल जॉइन करें, फिर **'मैंने जॉइन कर लिया'** पर क्लिक करें।"
     )
     bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
@@ -145,7 +148,7 @@ def job_alert_scheduler():
         fetch_all_india_hindi_news()
 
 # ==========================================
-# 5. इन-मेमोरी स्टेट, मेनू व नेविगेशन कीबोर्ड
+# 5. इन-मेमोरी स्टेट व मेनू कीबोर्ड्स
 # ==========================================
 user_sessions = {}
 
@@ -222,7 +225,7 @@ def send_welcome(message):
         "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
         "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें (100% सरकारी मानक)\n"
         "• 📄 PG, UG, Diploma, Exp युक्त मॉडर्न 2-कॉलम CV PDF\n"
-        "• 🧠 एग्जाम-वाइज़ सरकारी परीक्षा क्विज़ (SSC, Railway, Vyapam, Bank, Police, UPSC)\n\n"
+        "• 🧠 असीमित ऑल-इंडिया परीक्षा लाइव क्विज़\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_menu())
@@ -364,34 +367,58 @@ def apply_name_and_date(image_bytes, name, date_text):
     return buf.getvalue()
 
 # ==========================================
-# 8. फीचर 3: एग्जाम-वाइज़ ऑल-इंडिया क्विज़ इंजन
+# 8. फीचर 3: असीमित लाइव ऑनलाइन क्विज़ API इंजन (Never-Ending)
 # ==========================================
-exam_quizzes = {
-    "ssc": [
-        {"q": "भारतीय संविधान की कौन सी अनुसूची 'भाषाओं' से संबंधित है?", "options": ["7वीं अनुसूची", "8वीं अनुसूची", "9वीं अनुसूची", "10वीं अनुसूची"], "correct": 1},
-        {"q": "पानीपत की पहली लड़ाई किस वर्ष लड़ी गई थी?", "options": ["1526", "1556", "1761", "1539"], "correct": 0}
-    ],
-    "railway": [
-        {"q": "मानव शरीर में रक्त का थक्का (Blood Clot) जमाने में कौन सा विटामिन सहायक है?", "options": ["विटामिन A", "विटामिन C", "विटामिन K", "विटामिन D"], "correct": 2},
-        {"q": "ध्वनि की गति (Speed of Sound) सबसे अधिक किस माध्यम में होती है?", "options": ["हवा", "जल", "ठोस (स्टील)", "निर्वात"], "correct": 2}
-    ],
-    "vyapam": [
-        {"q": "मध्य प्रदेश में 'तानसेन समारोह' किस शहर में आयोजित किया जाता है?", "options": ["भोपाल", "उज्जैन", "ग्वालियर", "इंदौर"], "correct": 2},
-        {"q": "भारत में 73वां संविधान संशोधन किस व्यवस्था से संबंधित है?", "options": ["नगर पालिका", "पंचायती राज व्यवस्था", "भूमि सुधार", "जीएसटी"], "correct": 1}
-    ],
-    "police": [
-        {"q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में स्थित है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0},
-        {"q": "वायुमंडल की सबसे निचली परत को क्या कहा जाता है?", "options": ["समताप मंडल", "क्षोभमंडल (Troposphere)", "मध्यमंडल", "आयनमंडल"], "correct": 1}
-    ],
-    "bank": [
-        {"q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0},
-        {"q": "भारत में 'रेपो रेट' (Repo Rate) का निर्धारण किसके द्वारा किया जाता है?", "options": ["वित्त मंत्रालय", "RBI", "SEBI", "SBI"], "correct": 1}
-    ],
-    "upsc": [
-        {"q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "बदरुद्दीन तैयबजी"], "correct": 0},
-        {"q": "प्रकाश वर्ष (Light Year) निम्नलिखित में से किसका मात्रक है?", "options": ["समय", "दूरी", "प्रकाश की गति", "तीव्रता"], "correct": 1}
-    ]
+CATEGORY_MAP = {
+    "ssc": {"cat_id": 9, "title": "SSC (General Knowledge & History)"},
+    "railway": {"cat_id": 17, "title": "Railway (Science & Nature)"},
+    "vyapam": {"cat_id": 23, "title": "MP पटवारी / व्यापमं (History & Polity)"},
+    "police": {"cat_id": 22, "title": "पुलिस भर्ती (Geography & General Awareness)"},
+    "bank": {"cat_id": 9, "title": "बैंकिंग (General Awareness & Economy)"},
+    "upsc": {"cat_id": 24, "title": "UPSC / State PCS (Politics & Governance)"}
 }
+
+# ऑफ़लाइन फ़ॉलबैक बैकअप (अगर इंटरनेट API 1 सेकंड के लिए स्लो हो)
+FALLBACK_QUESTIONS = {
+    "ssc": {"q": "भारतीय संविधान की 8वीं अनुसूची में कुल कितनी भाषाएं हैं?", "options": ["18", "22", "24", "14"], "correct": 1, "year": "SSC CGL PYQ"},
+    "railway": {"q": "मानव शरीर में रक्त का थक्का जमाने में कौन सा विटामिन सहायक है?", "options": ["विटामिन A", "विटामिन B", "विटामिन K", "विटामिन D"], "correct": 2, "year": "RRB NTPC PYQ"},
+    "vyapam": {"q": "मध्य प्रदेश में तानसेन समारोह किस शहर में आयोजित होता है?", "options": ["भोपाल", "इंदौर", "ग्वालियर", "उज्जैन"], "correct": 2, "year": "MP Patwari PYQ"},
+    "police": {"q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0, "year": "Police Constable PYQ"},
+    "bank": {"q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0, "year": "Bank PO PYQ"},
+    "upsc": {"q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "गोखले"], "correct": 0, "year": "UPSC Prelims PYQ"}
+}
+
+active_quiz_cache = {}
+
+def fetch_live_quiz_question(category):
+    """लाइव इंटरनेट API से अनलिमिटेड सवाल फेच करने का फंक्शन"""
+    cat_info = CATEGORY_MAP.get(category, CATEGORY_MAP["ssc"])
+    api_url = f"https://opentdb.com/api.php?amount=1&category={cat_info['cat_id']}&type=multiple"
+    
+    try:
+        res = requests.get(api_url, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("response_code") == 0 and data.get("results"):
+                item = data["results"][0]
+                q_text = html.unescape(item["question"])
+                correct_ans = html.unescape(item["correct_answer"])
+                wrong_ans = [html.unescape(a) for a in item["incorrect_answers"]]
+                
+                options = wrong_ans + [correct_ans]
+                random.shuffle(options)
+                correct_index = options.index(correct_ans)
+                
+                return {
+                    "q": q_text,
+                    "options": options,
+                    "correct": correct_index,
+                    "year": f"{cat_info['title']} - Live Question"
+                }
+    except Exception as e:
+        print(f"Quiz API fetch fallback: {e}")
+        
+    return FALLBACK_QUESTIONS.get(category, FALLBACK_QUESTIONS["ssc"])
 
 def send_exam_category_menu(chat_id):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -399,27 +426,25 @@ def send_exam_category_menu(chat_id):
     b2 = types.InlineKeyboardButton("🚆 Railway (NTPC, Group D)", callback_data="qcat_railway")
     b3 = types.InlineKeyboardButton("🌾 MP पटवारी / व्यापमं", callback_data="qcat_vyapam")
     b4 = types.InlineKeyboardButton("👮 पुलिस (Constable / SI)", callback_data="qcat_police")
-    b5 = types.InlineKeyboardButton("🏦 बैंकिंग (IBPS, SBI PO/Clerk)", callback_data="qcat_bank")
+    b5 = types.InlineKeyboardButton("🏦 बैंकिंग (IBPS, SBI)", callback_data="qcat_bank")
     b6 = types.InlineKeyboardButton("🇮🇳 UPSC / State PSC", callback_data="qcat_upsc")
     b7 = types.InlineKeyboardButton("🏁 मुख्य मेनू पर जाएँ", callback_data="qcat_main")
     markup.add(b1, b2, b3, b4, b5, b6)
     markup.add(b7)
-    bot.send_message(chat_id, "📚 **किस सरकारी परीक्षा का टेस्ट देना चाहते हैं?**\nनीचे से अपनी परीक्षा चुनें 👇", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(chat_id, "📚 **किस सरकारी परीक्षा का टेस्ट देना चाहते हैं?**\n(हज़ारों अनलिमिटेड सवाल उपलब्ध हैं)\n\nनीचे से अपनी परीक्षा चुनें 👇", reply_markup=markup, parse_mode="Markdown")
 
 def send_category_question(chat_id, category):
-    q_list = exam_quizzes.get(category, exam_quizzes["ssc"])
-    q_idx = random.randint(0, len(q_list) - 1)
-    q_data = q_list[q_idx]
+    q_data = fetch_live_quiz_question(category)
+    active_quiz_cache[chat_id] = q_data
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     for opt_idx, option in enumerate(q_data["options"]):
-        markup.add(types.InlineKeyboardButton(option, callback_data=f"qz_{category}_{q_idx}_{opt_idx}"))
+        markup.add(types.InlineKeyboardButton(option, callback_data=f"qz_{category}_{opt_idx}"))
 
-    cat_title = category.upper()
     quiz_text = (
-        f"🎯 **परीक्षा: {cat_title} स्पेशल**\n\n"
+        f"🎯 **परीक्षा:** `{q_data['year']}`\n\n"
         f"❓ **प्रश्न:** {q_data['q']}\n\n"
-        f"👇 सही विकल्प पर क्लिक करें:"
+        f"👇 सही विकल्प चुनें:"
     )
     bot.send_message(chat_id, quiz_text, reply_markup=markup, parse_mode="Markdown")
 
@@ -443,7 +468,7 @@ def process_quiz_answer(call):
     
     if parts[1] == "next":
         cat = parts[2]
-        bot.answer_callback_query(call.id, "अगला प्रश्न लोड हो रहा है...")
+        bot.answer_callback_query(call.id, "अगला नया प्रश्न लोड हो रहा है...")
         send_category_question(chat_id, cat)
         return
     elif parts[1] == "change":
@@ -458,9 +483,13 @@ def process_quiz_answer(call):
         return
 
     cat = parts[1]
-    q_idx = int(parts[2])
-    opt_idx = int(parts[3])
-    q_data = exam_quizzes[cat][q_idx]
+    opt_idx = int(parts[2])
+
+    q_data = active_quiz_cache.get(chat_id)
+    if not q_data:
+        bot.answer_callback_query(call.id, "कृपया अगला प्रश्न दबाएँ।")
+        send_category_question(chat_id, cat)
+        return
 
     if opt_idx == q_data["correct"]:
         result_title = "🎉 **बिल्कुल सही उत्तर! शाबाश!**"
@@ -470,7 +499,7 @@ def process_quiz_answer(call):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("➡️ इसी परीक्षा का अगला प्रश्न", callback_data=f"qz_next_{cat}"),
+        types.InlineKeyboardButton("➡️ अगला नया प्रश्न (Next Question)", callback_data=f"qz_next_{cat}"),
         types.InlineKeyboardButton("🔄 अन्य परीक्षा बदलें (Change Exam)", callback_data="qz_change"),
         types.InlineKeyboardButton("🏁 मुख्य मेनू पर जाएँ", callback_data="qz_finish")
     )
@@ -571,7 +600,6 @@ def generate_full_resume_pdf(data):
         right_elements.append(Paragraph(f"• {data['exp']}", right_body))
         right_elements.append(Spacer(1, 10))
 
-    # शैक्षणिक योग्यता टेबल
     edu_table_data = [
         [Paragraph("Course / Qualification", table_head), Paragraph("Board / University / Institute", table_head), Paragraph("Score / Status", table_head)]
     ]
@@ -666,7 +694,7 @@ def handle_text(message):
     mode = session.get('mode')
     step = session.get('step')
 
-    # सदस्यता जाँच गेटवे
+    # लाइव सदस्यता जाँच (चैनल छोड़ा तो तुरंत ब्लॉक)
     if not is_user_subscribed(chat_id, user_id):
         send_join_channel_prompt(chat_id)
         return
@@ -931,7 +959,7 @@ def handle_photos_and_docs(message):
     mode = session.get('mode')
     step = session.get('step')
 
-    # सदस्यता जाँच
+    # सदस्यता लाइव जाँच
     if not is_user_subscribed(chat_id, user_id):
         send_join_channel_prompt(chat_id)
         return
@@ -951,7 +979,6 @@ def handle_photos_and_docs(message):
         deliver_cv_pdf(chat_id, rdata)
 
     else:
-        # रिसाइज़र मोड
         session['temp_photo'] = downloaded
         markup = types.InlineKeyboardMarkup(row_width=2)
         b1 = types.InlineKeyboardButton("📷 पासपोर्ट फोटो (20-50 KB)", callback_data="res_photo")
@@ -962,7 +989,7 @@ def handle_photos_and_docs(message):
         bot.reply_to(message, "⚙️ **किस सरकारी मानक साइज़ में कन्वर्ट करना है?**", reply_markup=markup, parse_mode="Markdown")
 
 # ==========================================
-# 12. मुख्य रनर (Safe Webhook with Rate-Limit Handling)
+# 12. मुख्य रनर
 # ==========================================
 if __name__ == '__main__':
     threading.Thread(target=job_alert_scheduler, daemon=True).start()
