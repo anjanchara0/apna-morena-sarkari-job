@@ -19,9 +19,9 @@ from reportlab.lib import colors
 # ==========================================
 # 1. कॉन्फ़िगरेशन
 # ==========================================
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8526721171:AAEN1zSLW1DkNqf6EaZwDFFW5-bcfvkTa6M")
+BOT_TOKEN = os.environ.get("BOT_TOKEN" "8526721171:AAHI55V6vyEaMvG0cBRXrjCnorPgDDC5eZg"
 CHANNEL_ID = "@apnamorenasarkarijob"
-WEBHOOK_URL = "https://apna-morena-sarkari-job.onrender.com"
+WEBHOOK_URL = "https://apna-morena-sarkaupdate = telebot.types.Update.de_json(json_string)ri-job.onrender.com"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 server = Flask(__name__)
