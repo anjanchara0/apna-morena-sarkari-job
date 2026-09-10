@@ -90,9 +90,9 @@ def check_premium(chat_id, user_id):
         bot.send_message(
             chat_id, 
             f"🔒 **यह एक Premium (VIP) टूल है!**\n\n"
-            f"इस टूल को फ्री में जीवन भर के लिए अनलॉक करने हेतु **5 दोस्तों को बॉट से जोड़ें**।\n\n"
+            f"क्विज़, करेंट अफेयर्स, टाइपिंग और CV मेकर को फ्री में जीवन भर के लिए अनलॉक करने हेतु **5 दोस्तों को बॉट से जोड़ें**।\n\n"
             f"📊 **आपके वर्तमान रेफरल:** `{refs} / 5`\n\n"
-            f"👉 मेनू से **'🎁 रेफर करें (Refer)'** बटन दबाएं और अपना लिंक दोस्तों को भेजें!", 
+            f"👉 मेनू से **'🎁 रेफर करें (Link निकालें)'** बटन दबाएं और अपना लिंक दोस्तों को भेजें!", 
             parse_mode="Markdown"
         )
         return False
@@ -146,7 +146,7 @@ def job_alert_scheduler():
         fetch_all_india_hindi_news()
 
 # ==========================================
-# 5. इन-मेमोरी स्टेट व नया एडवांस्ड मेनू
+# 5. इन-मेमोरी स्टेट व नया स्ट्रिक्ट VIP मेनू
 # ==========================================
 user_sessions = {}
 
@@ -180,11 +180,14 @@ STEP_PROMPTS = {
 
 def get_main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    # केवल ये 2 टूल पूरी तरह फ्री हैं
     markup.add(types.KeyboardButton("📐 फोटो / साइन रिसाइज़र"), types.KeyboardButton("🏷️ फोटो पर नाम व तारीख"))
-    markup.add(types.KeyboardButton("🧠 सरकारी एग्जाम डेली क्विज़"), types.KeyboardButton("⌨️ टाइपिंग स्पीड टेस्ट"))
-    markup.add(types.KeyboardButton("📰 डेली करेंट अफेयर्स"), types.KeyboardButton("🎁 रेफर करें (Refer & Earn)"))
-    markup.add(types.KeyboardButton("🔒 CV / रिज्यूम बनाएँ (VIP)"), types.KeyboardButton("🔒 आयु गणक (Age Calc)"))
-    markup.add(types.KeyboardButton("🔒 फ्री PDF लाइब्रेरी (VIP)"))
+    # बाकी सब पर ताला (VIP) लगा है
+    markup.add(types.KeyboardButton("🔒 सरकारी एग्जाम क्विज़ (VIP)"), types.KeyboardButton("🔒 टाइपिंग स्पीड टेस्ट (VIP)"))
+    markup.add(types.KeyboardButton("🔒 डेली करेंट अफेयर्स (VIP)"), types.KeyboardButton("🔒 CV / रिज्यूम बनाएँ (VIP)"))
+    markup.add(types.KeyboardButton("🔒 आयु गणक (Age Calc) (VIP)"), types.KeyboardButton("🔒 फ्री PDF लाइब्रेरी (VIP)"))
+    # लिंक निकालने का फ्री बटन
+    markup.add(types.KeyboardButton("🎁 रेफर करें (Link निकालें)"))
     return markup
 
 def get_step_control_keyboard(can_back=True, has_no_photo=False):
@@ -214,7 +217,7 @@ def send_welcome(message):
             if user_id not in has_joined_via and referrer_id != user_id:
                 has_joined_via[user_id] = referrer_id
                 user_referrals[referrer_id] = user_referrals.get(referrer_id, 0) + 1
-                bot.send_message(referrer_id, f"🎉 **बधाई!** एक नए दोस्त ने आपके लिंक से जॉइन किया है।\nकुल रेफरल: `{user_referrals[referrer_id]} / 5`", parse_mode="Markdown")
+                bot.send_message(referrer_id, f"🎉 **बधाई!** एक नए दोस्त ने आपके लिंक से जॉइन किया है।\nकुल रेफरल: `{user_referrals[referrer_id]} / 5`\n\n(5 होते ही सभी VIP टूल्स खुल जाएंगे!)", parse_mode="Markdown")
         except: pass
 
     if not is_user_subscribed(chat_id, user_id):
@@ -223,7 +226,10 @@ def send_welcome(message):
 
     text = (
         "👋 **ऑल-इन-वन स्टूडेंट सुपर-टूल में आपका स्वागत है!** 🇮🇳\n\n"
-        "आप यहाँ सरकारी तैयारी के सारे टूल्स मुफ़्त में इस्तेमाल कर सकते हैं। 5 दोस्तों को **रेफर** करके VIP फीचर्स अनलॉक करें!\n\n"
+        "यहाँ आपको मिलती है:\n"
+        "• 📷 **फ्री:** फोटो रिसाइज़र व नेम-डेट स्टैम्प\n"
+        "• 🔒 **VIP:** अनलिमिटेड क्विज़, टाइपिंग, CV मेकर, PDF नोट्स\n\n"
+        "*(VIP टूल्स अनलॉक करने के लिए 5 दोस्तों को रेफर करें)*\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=get_main_menu())
@@ -249,9 +255,8 @@ def calculate_age(dob, target):
         return "❌ तारीख का फॉर्मेट गलत है। कृपया **DD/MM/YYYY** (उदा: 15/08/2002) में भेजें।"
 
 # ==========================================
-# 7. फोटो रिसाइज़र व नेम-डेट स्टैम्पर
+# 7. फोटो रिसाइज़र व नेम-डेट स्टैम्पर (FREE)
 # ==========================================
-# (Code unchanged, abbreviated for space but fully functional as before)
 def resize_to_target_kb(image, max_kb, target_width):
     w_percent = (target_width / float(image.size[0]))
     h_size = int((float(image.size[1]) * float(w_percent)))
@@ -322,7 +327,7 @@ def apply_name_and_date(image_bytes, name, date_text):
     return buf.getvalue()
 
 # ==========================================
-# 8. अनलिमिटेड हिंदी/इंग्लिश क्विज़ इंजन (Unblockable API)
+# 8. अनलिमिटेड हिंदी/इंग्लिश क्विज़ इंजन [Premium]
 # ==========================================
 user_lang_pref = {}
 active_quiz_cache = {}
@@ -459,7 +464,7 @@ def process_quiz_answer(call):
     bot.edit_message_text(f"{call.message.text}\n\n━━━━━━━━━\n{res}", chat_id, call.message.message_id, reply_markup=m, parse_mode="Markdown")
 
 # ==========================================
-# 9. PDF CV जनरेटर (Abbreviated purely for length, logic intact)
+# 9. PDF CV जनरेटर [Premium]
 # ==========================================
 def is_valid_input(val): return val and val.strip().lower() not in ['na', 'n/a', 'no', 'none', '-']
 def generate_full_resume_pdf(data):
@@ -524,15 +529,62 @@ def handle_text(message):
     if not is_user_subscribed(chat_id, user_id): return send_join_channel_prompt(chat_id)
     if txt in ["❌ पूरा प्रोसेस कैंसिल (Cancel)", "cancel", "stop"]: session.clear(); return send_task_completion_menu(chat_id, "🚫 **कैंसिल!**")
 
-    # नए मेनू बटन्स
-    if txt == "🎁 रेफर करें (Refer & Earn)":
-        bot_usr = bot.get_me().username
-        link = f"https://t.me/{bot_usr}?start=ref_{user_id}"
-        refs = user_referrals.get(user_id, 0)
-        bot.send_message(chat_id, f"🎁 **Refer & Earn (अनलॉक VIP)**\n\nअपने दोस्तों को यह लिंक भेजें। 5 दोस्त जॉइन करते ही CV मेकर, आयु कैलकुलेटर और PDF लाइब्रेरी जीवन भर के लिए खुल जाएंगे!\n\n📊 **आपके रेफरल:** `{refs}/5`\n\n🔗 **आपका लिंक:**\n{link}", parse_mode="Markdown")
+    # ================== FREE TOOLS ==================
+    if txt == "📐 फोटो / साइन रिसाइज़र":
+        session.clear(); session['mode'] = 'resizer'
+        bot.send_message(chat_id, "📷 वह **फोटो/साइन** भेजें जिसे रिसाइज़ करना है:", reply_markup=get_step_control_keyboard(False))
+        return
+    elif txt == "🏷️ फोटो पर नाम व तारीख":
+        session.clear(); session['mode'], session['step'] = 'name_date', 'wait_photo'
+        bot.send_message(chat_id, "📷 अपनी **पासपोर्ट फोटो** भेजें:", reply_markup=get_step_control_keyboard(False))
         return
 
-    elif txt == "🔒 आयु गणक (Age Calc)":
+    # ================== REFERRAL LINK GENERATOR ==================
+    elif txt == "🎁 रेफर करें (Link निकालें)":
+        try:
+            bot_usr = bot.get_me().username
+            link = f"https://t.me/{bot_usr}?start=ref_{user_id}"
+            refs = user_referrals.get(user_id, 0)
+            bot.send_message(
+                chat_id, 
+                f"🎁 **Refer & Earn (अनलॉक VIP टूल्स)**\n\n"
+                f"अपने दोस्तों को यह लिंक भेजें। **5 दोस्त** जॉइन करते ही क्विज़, टाइपिंग, CV मेकर और सभी VIP टूल्स जीवन भर के लिए खुल जाएंगे!\n\n"
+                f"📊 **आपके वर्तमान रेफरल:** `{refs} / 5`\n\n"
+                f"🔗 **इसे कॉपी करके शेयर करें:**\n`{link}`", 
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            bot.send_message(chat_id, "❌ लिंक निकालने में त्रुटि। कृपया थोड़ी देर बाद प्रयास करें।")
+        return
+
+    # ================== VIP (LOCKED) TOOLS ==================
+    elif txt == "🔒 सरकारी एग्जाम क्विज़ (VIP)":
+        if not check_premium(chat_id, user_id): return
+        session.clear(); send_language_selection_menu(chat_id); return
+
+    elif txt == "🔒 टाइपिंग स्पीड टेस्ट (VIP)":
+        if not check_premium(chat_id, user_id): return
+        session['mode'] = 'typing'
+        test_txt = "Government exams require speed and accuracy."
+        session['typ_txt'] = test_txt
+        session['typ_start'] = time.time()
+        bot.send_message(chat_id, f"⌨️ **टाइपिंग टेस्ट शुरू!**\n\nनीचे दिए गए वाक्य को बिल्कुल वैसा ही टाइप करके भेजें:\n\n`{test_txt}`", parse_mode="Markdown")
+        return
+
+    elif txt == "🔒 डेली करेंट अफेयर्स (VIP)":
+        if not check_premium(chat_id, user_id): return
+        ca_text = "📰 **आज के करेंट अफेयर्स (Top 5)**\n\n1. सरकार ने नई भर्ती योजनाओं की घोषणा की।\n2. RBI ने ब्याज दरों में बदलाव किए।\n3. भारत का नया सैटेलाइट लॉन्च सफल रहा।\n4. आगामी SSC परीक्षाओं के लिए नया कैलेंडर जारी।\n5. एशियन गेम्स में भारत का शानदार प्रदर्शन।\n*(रोजाना नए अपडेट यहाँ मिलेंगे!)*"
+        bot.send_message(chat_id, ca_text, parse_mode="Markdown")
+        return
+
+    elif txt == "🔒 CV / रिज्यूम बनाएँ (VIP)":
+        if not check_premium(chat_id, user_id): return
+        session.clear()
+        session['mode'], session['step'], session['history'], session['rdata'] = 'resume', 's_name', [], {}
+        bot.send_message(chat_id, "💼 **CV मेकर शुरू!**\n" + STEP_PROMPTS['s_name'], reply_markup=get_step_control_keyboard(False))
+        return
+
+    elif txt == "🔒 आयु गणक (Age Calc) (VIP)":
         if not check_premium(chat_id, user_id): return
         session['mode'], session['step'] = 'age_calc', 'dob'
         bot.send_message(chat_id, "📅 **आयु गणक**\n\nअपनी जन्मतिथि (DOB) भेजें (उदा: `15/08/2002`):", parse_mode="Markdown")
@@ -544,37 +596,6 @@ def handle_text(message):
         markup.add(types.InlineKeyboardButton("📘 इतिहास (History)", callback_data="pdf_hist"), types.InlineKeyboardButton("📗 विज्ञान (Science)", callback_data="pdf_sci"))
         bot.send_message(chat_id, "📚 **PDF लाइब्रेरी** (VIP Access)\nविषय चुनें:", reply_markup=markup)
         return
-
-    elif txt == "📰 डेली करेंट अफेयर्स":
-        ca_text = "📰 **आज के करेंट अफेयर्स (Top 5)**\n\n1. सरकार ने नई भर्ती योजनाओं की घोषणा की।\n2. RBI ने ब्याज दरों में बदलाव किए।\n3. भारत का नया सैटेलाइट लॉन्च सफल रहा।\n4. आगामी SSC परीक्षाओं के लिए नया कैलेंडर जारी।\n5. एशियन गेम्स में भारत का शानदार प्रदर्शन।\n*(रोजाना नए अपडेट यहाँ मिलेंगे!)*"
-        bot.send_message(chat_id, ca_text, parse_mode="Markdown")
-        return
-
-    elif txt == "⌨️ टाइपिंग स्पीड टेस्ट":
-        session['mode'] = 'typing'
-        test_txt = "Government exams require speed and accuracy."
-        session['typ_txt'] = test_txt
-        session['typ_start'] = time.time()
-        bot.send_message(chat_id, f"⌨️ **टाइपिंग टेस्ट शुरू!**\n\nनीचे दिए गए वाक्य को बिल्कुल वैसा ही टाइप करके भेजें:\n\n`{test_txt}`", parse_mode="Markdown")
-        return
-
-    elif txt == "🔒 CV / रिज्यूम बनाएँ (VIP)":
-        if not check_premium(chat_id, user_id): return
-        session.clear()
-        session['mode'], session['step'], session['history'], session['rdata'] = 'resume', 's_name', [], {}
-        bot.send_message(chat_id, "💼 **CV मेकर शुरू!**\n" + STEP_PROMPTS['s_name'], reply_markup=get_step_control_keyboard(False))
-        return
-
-    elif txt == "📐 फोटो / साइन रिसाइज़र":
-        session.clear(); session['mode'] = 'resizer'
-        bot.send_message(chat_id, "📷 वह **फोटो/साइन** भेजें जिसे रिसाइज़ करना है:", reply_markup=get_step_control_keyboard(False))
-        return
-    elif txt == "🏷️ फोटो पर नाम व तारीख":
-        session.clear(); session['mode'], session['step'] = 'name_date', 'wait_photo'
-        bot.send_message(chat_id, "📷 अपनी **पासपोर्ट फोटो** भेजें:", reply_markup=get_step_control_keyboard(False))
-        return
-    elif txt == "🧠 सरकारी एग्जाम डेली क्विज़":
-        session.clear(); send_language_selection_menu(chat_id); return
 
     # मोड प्रोसेसिंग
     if mode == 'typing':
