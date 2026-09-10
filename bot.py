@@ -42,7 +42,7 @@ def webhook_status():
     return "✅ Master Student Platform Engine Live 24/7!", 200
 
 # ==========================================
-# 3. स्ट्रिक्ट लाइव फ़ोर्स सब्सक्रिप्शन (Real-time Live Server Check)
+# 3. स्ट्रिक्ट लाइव फ़ोर्स सब्सक्रिप्शन (Real-time Server Check)
 # ==========================================
 def is_user_subscribed(chat_id, user_id):
     try:
@@ -223,7 +223,7 @@ def send_welcome(message):
         "• 📷 सटीक KB में फोटो/साइन रिसाइज़ करें\n"
         "• 🏷️ फोटो पर नाम व तारीख (DOP) प्रिंट करें (100% सरकारी मानक)\n"
         "• 📄 PG, UG, Diploma, Exp युक्त मॉडर्न 2-कॉलम CV PDF\n"
-        "• 🧠 असीमित द्विभाषी (हिंदी + इंग्लिश) परीक्षा क्विज़\n\n"
+        "• 🧠 असीमित ऑनलाइन परीक्षा लाइव क्विज़ (शुद्ध हिंदी + इंग्लिश)\n\n"
         "नीचे दिए गए मेनू से अपनी सेवा चुनें 👇"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_menu())
@@ -365,7 +365,7 @@ def apply_name_and_date(image_bytes, name, date_text):
     return buf.getvalue()
 
 # ==========================================
-# 8. फीचर 3: असीमित द्विभाषी (Hindi + English) क्विज़ इंजन
+# 8. फीचर 3: असीमित लाइव ऑनलाइन क्विज़ (Fast Google Translator Engine)
 # ==========================================
 user_lang_pref = {}
 active_quiz_cache = {}
@@ -379,102 +379,79 @@ CATEGORY_MAP = {
     "upsc": {"cat_id": 24, "title_hi": "UPSC / State PCS (संविधान व राजव्यवस्था)", "title_en": "UPSC / State PSC"}
 }
 
-HINDI_PYQ_BANK = {
-    "ssc": [
-        {"q": "भारतीय संविधान की कौन सी अनुसूची 'मान्यता प्राप्त भाषाओं' से संबंधित है?", "options": ["7वीं अनुसूची", "8वीं अनुसूची", "9वीं अनुसूची", "10वीं अनुसूची"], "correct": 1, "year": "SSC CGL PYQ"},
-        {"q": "पानीपत की पहली लड़ाई (1526 ई.) किसके बीच लड़ी गई थी?", "options": ["बाबर और इब्राहिम लोदी", "अकबर और हेमू", "हुमायूं और शेरशाह", "बाबर और राणा सांगा"], "correct": 0, "year": "SSC CHSL PYQ"},
-        {"q": "भारत का पहला राष्ट्रीय उद्यान (National Park) कौन सा है?", "options": ["जिम कॉर्बेट", "काजीरंगा", "गिर राष्ट्रीय उद्यान", "कान्हा किसली"], "correct": 0, "year": "SSC MTS PYQ"},
-        {"q": "मानव रक्त का सामान्य pH मान कितना होता है?", "options": ["6.4", "7.0", "7.4", "8.2"], "correct": 2, "year": "SSC CPO PYQ"}
-    ],
-    "railway": [
-        {"q": "मानव शरीर में रक्त का थक्का (Blood Clot) जमाने में कौन सा विटामिन सहायक होता है?", "options": ["विटामिन A", "विटामिन C", "विटामिन K", "विटामिन D"], "correct": 2, "year": "RRB NTPC PYQ"},
-        {"q": "ध्वनि की चाल (Speed of Sound) सबसे अधिक किस माध्यम में होती है?", "options": ["हवा", "जल", "ठोस (स्टील)", "निर्वात"], "correct": 2, "year": "RRB Group D PYQ"},
-        {"q": "विद्युत धारा (Electric Current) मापने के लिए किस यंत्र का उपयोग किया जाता है?", "options": ["एमीटर (Ammeter)", "वोल्टमीटर", "गैल्वेनोमीटर", "ओह्ममीटर"], "correct": 0, "year": "RRB ALP PYQ"},
-        {"q": "भोपाल गैस त्रासदी (1984) में किस जहरीली गैस का रिसाव हुआ था?", "options": ["मिथाइल आइसोसाइनेट", "क्लोरीन", "सल्फर डाइऑक्साइड", "कार्बन मोनोऑक्साइड"], "correct": 0, "year": "RRB Group D PYQ"}
-    ],
-    "vyapam": [
-        {"q": "मध्य प्रदेश में 'तानसेन समारोह' किस शहर में आयोजित किया जाता है?", "options": ["भोपाल", "उज्जैन", "ग्वालियर", "इंदौर"], "correct": 2, "year": "MP Patwari PYQ"},
-        {"q": "भारत में पंचायती राज व्यवस्था लागू करने वाला पहला राज्य कौन सा था?", "options": ["मध्य प्रदेश", "राजस्थान (नागौर)", "उत्तर प्रदेश", "आंध्र प्रदेश"], "correct": 1, "year": "MP Patwari PYQ"},
-        {"q": "मध्य प्रदेश का सबसे बड़ा राष्ट्रीय उद्यान कौन सा है?", "options": ["कान्हा किसली", "बांधवगढ़", "पेंच", "माधव राष्ट्रीय उद्यान"], "correct": 0, "year": "MP Forest Guard PYQ"},
-        {"q": "नर्मदा नदी का उद्गम स्थल मध्य प्रदेश के किस जिले में है?", "options": ["जबलपुर", "अनूपपुर (अमरकंटक)", "होशंगाबाद", "मंडला"], "correct": 1, "year": "MP Jail Prahari PYQ"}
-    ],
-    "police": [
-        {"q": "काजीरंगा राष्ट्रीय उद्यान भारत के किस राज्य में स्थित है?", "options": ["असम", "मध्य प्रदेश", "राजस्थान", "उत्तराखंड"], "correct": 0, "year": "Police Constable PYQ"},
-        {"q": "वायुमंडल की सबसे निचली परत को क्या कहा जाता है?", "options": ["समताप मंडल", "क्षोभमंडल (Troposphere)", "मध्यमंडल", "आयनमंडल"], "correct": 1, "year": "Police SI PYQ"},
-        {"q": "मध्य प्रदेश पुलिस का ध्येय वाक्य (Motto) क्या है?", "options": ["सत्यमेव जयते", "देशभक्ति-जनसेवा", "वीरता और निष्ठा", "सेवा सुरक्षा शांति"], "correct": 1, "year": "MP Police PYQ"},
-        {"q": "सूर्य के प्रकाश से शरीर को कौन सा विटामिन प्राप्त होता है?", "options": ["विटामिन A", "विटामिन B", "विटामिन C", "विटामिन D"], "correct": 3, "year": "Police Constable PYQ"}
-    ],
-    "bank": [
-        {"q": "भारतीय रिजर्व बैंक (RBI) की स्थापना किस वर्ष हुई थी?", "options": ["1935", "1947", "1950", "1969"], "correct": 0, "year": "IBPS PO PYQ"},
-        {"q": "भारत में 'रेपो रेट' (Repo Rate) का निर्धारण किसके द्वारा किया जाता है?", "options": ["वित्त मंत्रालय", "RBI", "SEBI", "SBI"], "correct": 1, "year": "SBI Clerk PYQ"},
-        {"q": "बैंकिंग क्षेत्र में 'KYC' का पूर्ण रूप क्या होता है?", "options": ["Know Your Customer", "Know Your Cash", "Keep Your Card", "Key Yield Credit"], "correct": 0, "year": "Bank PO PYQ"},
-        {"q": "चेक की वैधता (Validity) जारी होने की तारीख से कितने समय तक होती है?", "options": ["1 महीना", "3 महीने", "6 महीने", "1 वर्ष"], "correct": 1, "year": "IBPS Clerk PYQ"}
-    ],
-    "upsc": [
-        {"q": "भारतीय राष्ट्रीय कांग्रेस के प्रथम अध्यक्ष कौन थे?", "options": ["व्योमेश चंद्र बनर्जी", "दादाभाई नौरोजी", "ए.ओ. ह्यूम", "बदरुद्दीन तैयबजी"], "correct": 0, "year": "UPSC Prelims PYQ"},
-        {"q": "प्रकाश वर्ष (Light Year) निम्नलिखित में से किसका मात्रक है?", "options": ["समय", "खगोलीय दूरी", "प्रकाश की गति", "तीव्रता"], "correct": 1, "year": "UPSC Civil Services PYQ"},
-        {"q": "भीमबेटका की गुफाएं किसके लिए प्रसिद्ध हैं?", "options": ["प्रागैतिहासिक शैलचित्र", "बौद्ध स्तूप", "खनिज", "मंदिर"], "correct": 0, "year": "MPPSC PYQ"},
-        {"q": "भारत में 'आर्थिक सर्वेक्षण' किसके द्वारा प्रकाशित किया जाता है?", "options": ["नीति आयोग", "वित्त मंत्रालय", "सांख्यिकी संस्थान", "RBI"], "correct": 1, "year": "UPSC Prelims PYQ"}
-    ]
-}
-
-def translate_to_hindi(text):
+def google_translate_text(text, target_lang="hi"):
+    """Google का डायरेक्ट हाई-स्पीड ट्रांसलेशन इंजन (100% अनऑफिशियल फ्री एंडपॉइंट)"""
+    if not text:
+        return text
     try:
-        url = f"https://api.mymemory.translated.net/get?q={requests.utils.quote(text)}&langpair=en|hi"
-        r = requests.get(url, timeout=3)
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "auto",
+            "tl": target_lang,
+            "dt": "t",
+            "q": text
+        }
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, params=params, headers=headers, timeout=4)
         if r.status_code == 200:
-            res = r.json()
-            trans = res.get("responseData", {}).get("translatedText")
-            if trans and trans != text:
-                return html.unescape(trans)
-    except:
-        pass
+            res_json = r.json()
+            translated = "".join([sentence[0] for sentence in res_json[0] if sentence[0]])
+            if translated:
+                return translated
+    except Exception as e:
+        print(f"Google Translate Exception: {e}")
     return text
 
 def fetch_quiz_question(category, lang="hi"):
-    if lang == "hi":
-        hindi_list = HINDI_PYQ_BANK.get(category, HINDI_PYQ_BANK["ssc"])
-        if random.random() < 0.6:
-            return random.choice(hindi_list)
-
+    """लाइव इंटरनेट से असीमित सवाल फेच करके तुरंत हिंदी में बदलना"""
     cat_info = CATEGORY_MAP.get(category, CATEGORY_MAP["ssc"])
     api_url = f"https://opentdb.com/api.php?amount=1&category={cat_info['cat_id']}&type=multiple"
-    try:
-        res = requests.get(api_url, timeout=4)
-        if res.status_code == 200:
-            data = res.json()
-            if data.get("response_code") == 0 and data.get("results"):
-                item = data["results"][0]
-                raw_q = html.unescape(item["question"])
-                raw_correct = html.unescape(item["correct_answer"])
-                raw_wrongs = [html.unescape(a) for a in item["incorrect_answers"]]
+    
+    # 3 बार कोशिश करेगा ताकि खाली न लौटे
+    for _ in range(3):
+        try:
+            res = requests.get(api_url, timeout=4)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("response_code") == 0 and data.get("results"):
+                    item = data["results"][0]
+                    raw_q = html.unescape(item["question"])
+                    raw_correct = html.unescape(item["correct_answer"])
+                    raw_wrongs = [html.unescape(a) for a in item["incorrect_answers"]]
 
-                if lang == "hi":
-                    final_q = translate_to_hindi(raw_q)
-                    final_correct = translate_to_hindi(raw_correct)
-                    final_wrongs = [translate_to_hindi(w) for w in raw_wrongs]
-                    title = cat_info["title_hi"]
-                else:
-                    final_q = raw_q
-                    final_correct = raw_correct
-                    final_wrongs = raw_wrongs
-                    title = cat_info["title_en"]
+                    if lang == "hi":
+                        final_q = google_translate_text(raw_q, "hi")
+                        final_correct = google_translate_text(raw_correct, "hi")
+                        final_wrongs = [google_translate_text(w, "hi") for w in raw_wrongs]
+                        title = cat_info["title_hi"]
+                    else:
+                        final_q = raw_q
+                        final_correct = raw_correct
+                        final_wrongs = raw_wrongs
+                        title = cat_info["title_en"]
 
-                options = final_wrongs + [final_correct]
-                random.shuffle(options)
-                correct_idx = options.index(final_correct)
+                    options = final_wrongs + [final_correct]
+                    random.shuffle(options)
+                    correct_idx = options.index(final_correct)
 
-                return {
-                    "q": final_q,
-                    "options": options,
-                    "correct": correct_idx,
-                    "year": f"{title} - Live Quiz"
-                }
-    except Exception as e:
-        print(f"API Fetch Error: {e}")
+                    return {
+                        "q": final_q,
+                        "options": options,
+                        "correct": correct_idx,
+                        "year": f"{title} - Live Quiz"
+                    }
+        except Exception as e:
+            print(f"Quiz Fetch Attempt Error: {e}")
+            time.sleep(0.5)
 
-    fallback_list = HINDI_PYQ_BANK.get(category, HINDI_PYQ_BANK["ssc"])
-    return random.choice(fallback_list)
+    # अगर किसी सेकंड API डाउन हो, तो यह फॉलबैक देगा
+    return {
+        "q": "भारतीय संविधान की कौन सी अनुसूची 'मान्यता प्राप्त भाषाओं' से संबंधित है?",
+        "options": ["7वीं अनुसूची", "8वीं अनुसूची", "9वीं अनुसूची", "10वीं अनुसूची"],
+        "correct": 1,
+        "year": f"{cat_info['title_hi']} - GK"
+    }
 
 def send_language_selection_menu(chat_id):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -567,7 +544,7 @@ def process_quiz_answer(call):
     
     if parts[1] == "next":
         cat = parts[2]
-        bot.answer_callback_query(call.id, "अगला प्रश्न लोड हो रहा है..." if lang == "hi" else "Loading next question...")
+        bot.answer_callback_query(call.id, "नया प्रश्न लोड हो रहा है..." if lang == "hi" else "Loading question...")
         send_category_question(chat_id, cat)
         return
     elif parts[1] == "change":
